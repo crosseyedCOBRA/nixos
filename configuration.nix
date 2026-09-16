@@ -1,4 +1,4 @@
-{ config, pkgs, lib, username, ... }:
+{ config, pkgs, lib, username, inputs, ... }:
 
 {
   imports = [
@@ -61,7 +61,7 @@
       i3blocks
     ];
   };
-  services.displayManager.lightdm.enable = true;
+  services.displayManager.ly.enable = true;
   services.displayManager.defaultSession = "none+i3";
 
   # --- Flatpak + desktop portals ---
@@ -103,9 +103,17 @@
     unzip
     p7zip
     file
+    chromium
+    brave
+    inputs.zen-browser.packages.${pkgs.system}.default # beta channel
   ];
 
   programs.firefox.enable = true;
+
+  # --- Flatpak apps (declarative via nix-flatpak) ---
+  services.flatpak.packages = [
+    "re.sonny.Tangram" # web app installer
+  ];
 
   # This value determines the NixOS release from which the default
   # settings for stateful data were taken. Do NOT bump this on later

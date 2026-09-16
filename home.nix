@@ -1,4 +1,4 @@
-{ config, pkgs, username, ... }:
+{ config, pkgs, username, inputs, ... }:
 
 let
   modifier = "Mod4";
@@ -11,7 +11,7 @@ in
   home.stateVersion = "25.11";
 
   home.packages = with pkgs; [
-    quickshell
+    inputs.quickshell.packages.${pkgs.system}.default
     libnotify
     playerctl
     brightnessctl
@@ -21,6 +21,7 @@ in
     xclip
     feh
     networkmanagerapplet
+    thunar
   ];
 
   home.sessionVariables = {
@@ -109,8 +110,8 @@ in
         mod = modifier;
       in {
         "${mod}+Return" = "exec ${terminal}";
-        "${mod}+d" = "exec rofi -show drun -show-icons";
-        "${mod}+Shift+q" = "kill";
+        "${mod}+space" = "exec rofi -show drun -show-icons";
+        "${mod}+q" = "kill";
         "${mod}+Shift+c" = "reload";
         "${mod}+Shift+r" = "restart";
         "${mod}+Shift+e" = ''exec i3-nagbar -t warning -m 'Exit i3?' -B 'Yes' 'i3-msg exit' '';
@@ -130,10 +131,11 @@ in
         "${mod}+f" = "fullscreen toggle";
         "${mod}+s" = "layout stacking";
         "${mod}+w" = "layout tabbed";
-        "${mod}+e" = "layout toggle split";
+        "${mod}+t" = "layout toggle split";
         "${mod}+Shift+space" = "floating toggle";
-        "${mod}+space" = "focus mode_toggle";
+        "${mod}+Tab" = "focus mode_toggle";
         "${mod}+a" = "focus parent";
+        "${mod}+e" = "exec thunar";
 
         "${mod}+1" = "workspace number 1";
         "${mod}+2" = "workspace number 2";
