@@ -64,18 +64,47 @@
   services.xserver.displayManager.lightdm.enable = true;
   services.displayManager.defaultSession = "none+i3";
 
+  # --- XFCE / Awesome trial sessions ---
+  # NixOS automatically generates one login-screen entry per desktop-manager
+  # x window-manager combination, so enabling both of these also yields a
+  # third, hybrid "xfce+awesome" session (XFCE's session/panel with Awesome
+  # as the window manager instead of xfwm4) alongside the two plain ones.
+  services.xserver.desktopManager.xfce.enable = true;
+  services.xserver.windowManager.awesome.enable = true;
+
+  # --- Monitor layout ---
+  # DisplayPort-0: primary, 165Hz. DisplayPort-1: rotated 90° right, to the
+  # right of DP-0. DisplayPort-2: further right of (rotated) DP-1, 144Hz.
+  # HDMI-A-0 (mirrors DisplayPort-0, native 4K) stays off by default —
+  # mirroring it had a real performance cost (likely an XLibre clone-mode
+  # bug) — and is toggled on/off on demand via Mod+d (the `toggle-hdmi`
+  # script).
+  services.xserver.displayManager.setupCommands = ''
+    ${pkgs.xrandr}/bin/xrandr \
+      --output DisplayPort-0 --mode 1920x1080 --rate 165 --pos 0x0 --rotate normal --primary \
+      --output DisplayPort-1 --mode 1920x1080 --rate 144 --rotate right --right-of DisplayPort-0 \
+      --output DisplayPort-2 --mode 1920x1080 --rate 144 --rotate normal --right-of DisplayPort-1 \
+      --output HDMI-A-0 --off
+  '';
+
+  # --- Theming ---
+  # Required by home-manager's `dconf.settings` (used for GTK dark mode).
+  programs.dconf.enable = true;
+  programs.xfconf.enable = true; # required by home-manager's xfconf.settings
+
   # --- Flatpak + desktop portals ---
   services.flatpak.enable = true;
   xdg.portal = {
     enable = true;
     extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+    config.common.default = "*";
   };
 
   # --- Fonts ---
   # Pulls in every packaged Nerd Font (several GB) since all of them were requested.
   fonts.packages = with pkgs; [
     noto-fonts
-    noto-fonts-emoji
+    noto-fonts-color-emoji
     font-awesome
   ] ++ lib.attrValues (lib.filterAttrs (_: lib.isDerivation) nerd-fonts);
 
@@ -97,6 +126,7 @@
 
   environment.systemPackages = with pkgs; [
     vim
+    fastfetch
     wget
     curl
     git
@@ -105,14 +135,34 @@
     file
     chromium
     brave
+    claude-code
     inputs.zen-browser.packages.${pkgs.system}.default # beta channel
+
+    # --- Gaming ---
+    mangohud
+    lutris
+    heroic
+    protonup-qt
+    wineWow64Packages.stable
+    winetricks
   ];
 
   programs.firefox.enable = true;
 
+  # --- Gaming ---
+  programs.steam = {
+    enable = true;
+    remotePlay.openFirewall = true;
+    localNetworkGameTransfers.openFirewall = true;
+    gamescopeSession.enable = true;
+    extraCompatPackages = [ pkgs.proton-ge-bin ];
+  };
+  programs.gamemode.enable = true;
+  hardware.steam-hardware.enable = true; # controller udev rules
+
   # --- Flatpak apps (declarative via nix-flatpak) ---
   services.flatpak.packages = [
-    "re.sonny.Tangram" # web app installer
+    "org.pvermeer.WebAppHub" # web app installer
   ];
 
   # This value determines the NixOS release from which the default
