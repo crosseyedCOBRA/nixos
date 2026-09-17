@@ -120,7 +120,7 @@ in
           family = "JetBrainsMono Nerd Font";
           style = "Regular";
         };
-        size = 11;
+        size = 10;
       };
     };
   };
@@ -235,8 +235,11 @@ in
     enable = true;
     backend = "glx";
     vSync = true;
-    fade = true;
-    fadeDelta = 5;
+    # Fading was the actual cause of a perceived lag on every redraw (even
+    # something as instant as fastfetch felt like it had a delay before
+    # appearing) -- confirmed by testing with fade disabled while leaving
+    # everything else (shadow, vsync, backend) unchanged.
+    fade = false;
     shadow = true;
     settings = {
       corner-radius = 6;
@@ -289,4 +292,5 @@ in
     source = ./awesome/view-tag.sh;
     executable = true;
   };
+  xdg.configFile."fastfetch/config.jsonc".source = ./fastfetch/config.jsonc;
 }
