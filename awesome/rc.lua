@@ -10,6 +10,7 @@ require("awful.autofocus")
 local wibox = require("wibox")
 -- Theme handling library
 local beautiful = require("beautiful")
+local dpi = require("beautiful.xresources").apply_dpi
 -- Notification library
 local naughty = require("naughty")
 local menubar = require("menubar")
@@ -538,6 +539,20 @@ awful.rules.rules = {
     -- Set Firefox to always map on the tag named "2" on screen 1.
     -- { rule = { class = "Firefox" },
     --   properties = { screen = 1, tag = "2" } },
+
+    -- Steam (class "steam") advertises a hard minimum window size (its main
+    -- window claims it won't go below 1010x600 -- see WM_NORMAL_HINTS).
+    -- Unlike i3/sway/dwm, which force tiled clients into the grid geometry
+    -- regardless of requested hints, Awesome honors size hints by default
+    -- (size_hints_honor), so its tiling layouts won't shrink Steam past
+    -- that minimum. When it shares a screen with another tiled client
+    -- there isn't room for both and they overlap -- on DisplayPort-1 (only
+    -- 1080px wide, vs. 1920px for its neighbors) that overlap spills onto
+    -- the adjacent monitor entirely. Disabling size_hints_honor makes
+    -- Awesome tile it like the other WMs do: forced to the exact slot,
+    -- ignoring the requested minimum.
+    { rule = { class = "steam" },
+      properties = { screen = 1, size_hints_honor = false } },
 }
 -- }}}
 
@@ -601,6 +616,12 @@ client.connect_signal("mouse::enter", function(c)
     c:emit_signal("request::activate", "mouse_enter", {raise = false})
 end)
 
-client.connect_signal("focus", function(c) c.border_color = beautiful.border_focus end)
-client.connect_signal("unfocus", function(c) c.border_color = beautiful.border_normal end)
+client.connect_signal("focus", function(c)
+    c.border_color = beautiful.border_focus
+    c.border_width = dpi(3)
+end)
+client.connect_signal("unfocus", function(c)
+    c.border_color = beautiful.border_normal
+    c.border_width = beautiful.border_width
+end)
 -- }}}

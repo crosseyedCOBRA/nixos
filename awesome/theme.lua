@@ -36,7 +36,7 @@ theme.fg_focus      = bg
 theme.fg_urgent     = bg
 theme.fg_minimize   = muted
 
-theme.useless_gap   = dpi(10)
+theme.useless_gap   = dpi(4)
 theme.border_width  = dpi(2)
 theme.border_normal = border
 theme.border_focus  = blue

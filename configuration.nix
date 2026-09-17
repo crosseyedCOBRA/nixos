@@ -133,6 +133,7 @@
     brave
     claude-code
     vesktop
+    xdg-user-dirs
     inputs.zen-browser.packages.${pkgs.system}.default # beta channel
 
     # --- Gaming ---
@@ -156,6 +157,19 @@
   };
   programs.gamemode.enable = true;
   hardware.steam-hardware.enable = true; # controller udev rules
+
+  # --- External drives ---
+  # nofail so boot doesn't hang/fail if either drive is unplugged.
+  fileSystems."/mnt/wd" = {
+    device = "/dev/disk/by-uuid/bfc665b1-20ba-4eca-927e-aaa2cc0656ae";
+    fsType = "xfs";
+    options = [ "nofail" ];
+  };
+  fileSystems."/mnt/samsung" = {
+    device = "/dev/disk/by-uuid/f2602e89-279c-42e7-8f9c-0b2cbeb06bcc";
+    fsType = "xfs";
+    options = [ "nofail" ];
+  };
 
   # --- Flatpak apps (declarative via nix-flatpak) ---
   services.flatpak.packages = [
