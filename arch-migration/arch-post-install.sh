@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║  Arch Linux Post-Install: XLibre + Awesome + Full Desktop       ║
+# ║  Arch Linux Post-Install: XLibre + Qtile + Full Desktop        ║
 # ║  Run as:  sudo ./arch-post-install.sh                          ║
-# ║  (Optional: put your wallpaper.jpg next to this script first — ║
-# ║   it'll be copied into place automatically if present.)        ║
 # ╚══════════════════════════════════════════════════════════════════╝
 set -euo pipefail
 
@@ -15,7 +13,6 @@ fi
 
 REAL_USER="${SUDO_USER:-$(logname 2>/dev/null || echo root)}"
 REAL_HOME=$(eval echo "~$REAL_USER")
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "═══════════════════════════════════════════════════════════"
 echo "  Arch Linux Post-Install"
@@ -64,7 +61,19 @@ pacman -Syy
 # =====================================================================
 step "Installing XLibre (replaces Xorg)"
 
-pacman -S --noconfirm xlibre-meta
+# archinstall may have already pulled in stock xorg-server (e.g. if a
+# desktop profile was picked during the guided install). xlibre-meta
+# conflicts with it but isn't marked to auto-replace it, so pacman
+# refuses the transaction unless the old package is removed first.
+CONFLICTING_XORG_PKGS="xorg-server xorg-server-common xorg-xwayland"
+for pkg in $CONFLICTING_XORG_PKGS; do
+    if pacman -Qq "$pkg" &>/dev/null; then
+        echo "  → Removing conflicting package: $pkg"
+        pacman -Rdd --noconfirm "$pkg"
+    fi
+done
+
+pacman -S --noconfirm --overwrite '*' xlibre-meta
 
 # =====================================================================
 # 4. GPU DRIVER
@@ -96,12 +105,12 @@ else
 fi
 
 # =====================================================================
-# 5. AWESOME + DISPLAY MANAGER
+# 5. QTILE + DISPLAY MANAGER
 # =====================================================================
-step "Installing Awesome + LightDM"
+step "Installing Qtile + LightDM"
 
 pacman -S --noconfirm --needed \
-    awesome xorg-xrandr \
+    qtile python-psutil python-iwlib \
     lightdm lightdm-gtk-greeter
 
 systemctl enable lightdm
@@ -128,8 +137,6 @@ pacman -S --noconfirm --needed \
     dunst \
     feh \
     flameshot \
-    i3lock \
-    playerctl \
     thunar gvfs thunar-volman \
     network-manager-applet \
     bluez bluez-utils \
@@ -147,16 +154,7 @@ pacman -S --noconfirm --needed \
     xorg-xdpyinfo
 
 # =====================================================================
-# 8. FLATPAK
-# =====================================================================
-step "Installing Flatpak + Flathub"
-
-pacman -S --noconfirm --needed flatpak
-sudo -u "$REAL_USER" flatpak remote-add --if-not-exists flathub \
-    https://flathub.org/repo/flathub.flatpakrepo
-
-# =====================================================================
-# 9. CLI TOOLS
+# 8. CLI TOOLS
 # =====================================================================
 step "Installing CLI tools"
 
@@ -180,7 +178,7 @@ pacman -S --noconfirm --needed \
     man-pages
 
 # =====================================================================
-# 10. FONTS
+# 9. FONTS
 # =====================================================================
 step "Installing fonts"
 
@@ -193,13 +191,13 @@ pacman -S --noconfirm --needed \
     ttf-dejavu
 
 # =====================================================================
-# 11. BROWSER
+# 10. BROWSER
 # =====================================================================
 step "Installing Firefox"
 pacman -S --noconfirm --needed firefox
 
 # =====================================================================
-# 12. BUILD TOOLS (for ZarisWM later)
+# 11. BUILD TOOLS (for ZarisWM later)
 # =====================================================================
 step "Installing build tools (C/C++, cmake, xcb — ready for ZarisWM)"
 
@@ -221,7 +219,7 @@ pacman -S --noconfirm --needed \
     startup-notification
 
 # =====================================================================
-# 13. THEMING
+# 12. THEMING
 # =====================================================================
 step "Installing GTK themes + icons"
 
@@ -230,7 +228,7 @@ pacman -S --noconfirm --needed \
     arc-gtk-theme
 
 # =====================================================================
-# 14. INSTALL yay (AUR HELPER)
+# 13. INSTALL yay (AUR HELPER)
 # =====================================================================
 step "Installing yay (AUR helper)"
 
@@ -247,7 +245,7 @@ else
 fi
 
 # =====================================================================
-# 15. ENABLE SERVICES
+# 14. ENABLE SERVICES
 # =====================================================================
 step "Enabling services"
 
@@ -255,14 +253,14 @@ systemctl enable NetworkManager
 systemctl enable bluetooth
 
 echo "  → Enabled: NetworkManager, bluetooth, lightdm"
-echo "  → snapper-timeline.timer / snapper-cleanup.timer should already"
-echo "    be enabled from the manual install steps"
 
 # =====================================================================
-# 16. PIPEWIRE USER AUTOSTART
+# 15. PIPEWIRE USER AUTOSTART
 # =====================================================================
 step "PipeWire user autostart (handled by wireplumber)"
 
+# PipeWire on Arch auto-starts via XDG autostart + systemd user units.
+# Just ensure the user units are enabled:
 su - "$REAL_USER" -c "systemctl --user enable pipewire.socket 2>/dev/null" || true
 su - "$REAL_USER" -c "systemctl --user enable pipewire-pulse.socket 2>/dev/null" || true
 su - "$REAL_USER" -c "systemctl --user enable wireplumber 2>/dev/null" || true
@@ -270,572 +268,210 @@ su - "$REAL_USER" -c "systemctl --user enable wireplumber 2>/dev/null" || true
 echo "  → PipeWire user services enabled"
 
 # =====================================================================
-# 17. XDG USER DIRS
+# 16. XDG USER DIRS
 # =====================================================================
 step "Creating XDG user directories"
 su - "$REAL_USER" -c "xdg-user-dirs-update" 2>/dev/null || true
 
 # =====================================================================
-# 18. toggle-hdmi SCRIPT
+# 17. QTILE CONFIG
 # =====================================================================
-step "Installing toggle-hdmi script"
+step "Writing Qtile config"
 
-cat > /usr/local/bin/toggle-hdmi << 'HDMIEOF'
-#!/usr/bin/env bash
-# Toggles HDMI-A-0 (mirrors DisplayPort-0) on/off.
-if xrandr --query | grep -q "^HDMI-A-0 connected [0-9]"; then
-    xrandr --output HDMI-A-0 --off
-else
-    xrandr --output HDMI-A-0 --mode 1920x1080 --rate 60 --rotate normal --same-as DisplayPort-0
-fi
-HDMIEOF
-chmod +x /usr/local/bin/toggle-hdmi
+QTILE_DIR="$REAL_HOME/.config/qtile"
+mkdir -p "$QTILE_DIR"
 
-# =====================================================================
-# 19. AWESOME CONFIG
-# =====================================================================
-step "Writing Awesome config"
+# ── config.py ────────────────────────────────────────────────────────
+cat > "$QTILE_DIR/config.py" << 'PYEOF'
+import os
+import subprocess
+from libqtile import bar, layout, widget, hook
+from libqtile.config import Click, Drag, Group, Key, Match, Screen
+from libqtile.lazy import lazy
 
-AWESOME_DIR="$REAL_HOME/.config/awesome"
-mkdir -p "$AWESOME_DIR"
-
-# ── theme.lua ────────────────────────────────────────────────────────
-# Same palette used everywhere else (deep space navy, nebula blue,
-# warm cloud orange, coral pink) — pulled straight from the NixOS setup,
-# nothing here is Nix-specific so it ports over unchanged.
-cat > "$AWESOME_DIR/theme.lua" << 'THEMEEOF'
-local theme_assets = require("beautiful.theme_assets")
-local xresources = require("beautiful.xresources")
-local dpi = xresources.apply_dpi
-
-local gfs = require("gears.filesystem")
-local themes_path = gfs.get_themes_dir()
-
-local theme = {}
-
-theme.font          = "JetBrainsMono Nerd Font 11"
-
-local bg        = "#0a0e1a"
-local surface   = "#1a1b26"
-local border    = "#292e42"
-local text      = "#c0caf5"
-local muted     = "#565f89"
-local blue      = "#7aa2f7"
-local orange    = "#ff9e64"
-local pink      = "#f7768e"
-
-theme.bg_normal     = bg
-theme.bg_focus      = blue
-theme.bg_urgent     = pink
-theme.bg_minimize   = surface
-theme.bg_systray    = theme.bg_normal
-
-theme.fg_normal     = text
-theme.fg_focus      = bg
-theme.fg_urgent     = bg
-theme.fg_minimize   = muted
-
-theme.useless_gap   = dpi(10)
-theme.border_width  = dpi(2)
-theme.border_normal = border
-theme.border_focus  = blue
-theme.border_marked = orange
-
-local taglist_square_size = dpi(4)
-theme.taglist_squares_sel = theme_assets.taglist_squares_sel(
-    taglist_square_size, theme.fg_normal
-)
-theme.taglist_squares_unsel = theme_assets.taglist_squares_unsel(
-    taglist_square_size, theme.fg_normal
-)
-
-theme.menu_submenu_icon = themes_path.."default/submenu.png"
-theme.menu_height = dpi(20)
-theme.menu_width  = dpi(140)
-theme.menu_bg_normal = surface
-theme.menu_fg_normal = text
-theme.menu_bg_focus = blue
-theme.menu_fg_focus = bg
-theme.menu_border_color = border
-
-theme.prompt_fg = text
-theme.prompt_bg = surface
-theme.prompt_fg_cursor = bg
-theme.prompt_bg_cursor = blue
-
-theme.titlebar_close_button_normal = themes_path.."default/titlebar/close_normal.png"
-theme.titlebar_close_button_focus  = themes_path.."default/titlebar/close_focus.png"
-
-theme.titlebar_minimize_button_normal = themes_path.."default/titlebar/minimize_normal.png"
-theme.titlebar_minimize_button_focus  = themes_path.."default/titlebar/minimize_focus.png"
-
-theme.titlebar_ontop_button_normal_inactive = themes_path.."default/titlebar/ontop_normal_inactive.png"
-theme.titlebar_ontop_button_focus_inactive  = themes_path.."default/titlebar/ontop_focus_inactive.png"
-theme.titlebar_ontop_button_normal_active = themes_path.."default/titlebar/ontop_normal_active.png"
-theme.titlebar_ontop_button_focus_active  = themes_path.."default/titlebar/ontop_focus_active.png"
-
-theme.titlebar_sticky_button_normal_inactive = themes_path.."default/titlebar/sticky_normal_inactive.png"
-theme.titlebar_sticky_button_focus_inactive  = themes_path.."default/titlebar/sticky_focus_inactive.png"
-theme.titlebar_sticky_button_normal_active = themes_path.."default/titlebar/sticky_normal_active.png"
-theme.titlebar_sticky_button_focus_active  = themes_path.."default/titlebar/sticky_focus_active.png"
-
-theme.titlebar_floating_button_normal_inactive = themes_path.."default/titlebar/floating_normal_inactive.png"
-theme.titlebar_floating_button_focus_inactive  = themes_path.."default/titlebar/floating_focus_inactive.png"
-theme.titlebar_floating_button_normal_active = themes_path.."default/titlebar/floating_normal_active.png"
-theme.titlebar_floating_button_focus_active  = themes_path.."default/titlebar/floating_focus_active.png"
-
-theme.titlebar_maximized_button_normal_inactive = themes_path.."default/titlebar/maximized_normal_inactive.png"
-theme.titlebar_maximized_button_focus_inactive  = themes_path.."default/titlebar/maximized_focus_inactive.png"
-theme.titlebar_maximized_button_normal_active = themes_path.."default/titlebar/maximized_normal_active.png"
-theme.titlebar_maximized_button_focus_active  = themes_path.."default/titlebar/maximized_focus_active.png"
-
-theme.titlebar_bg_normal = surface
-theme.titlebar_fg_normal = muted
-theme.titlebar_bg_focus = surface
-theme.titlebar_fg_focus = text
-
-theme.wallpaper = os.getenv("HOME") .. "/.config/awesome/wallpaper.jpg"
-
-theme.layout_fairh = themes_path.."default/layouts/fairhw.png"
-theme.layout_fairv = themes_path.."default/layouts/fairvw.png"
-theme.layout_floating  = themes_path.."default/layouts/floatingw.png"
-theme.layout_magnifier = themes_path.."default/layouts/magnifierw.png"
-theme.layout_max = themes_path.."default/layouts/maxw.png"
-theme.layout_fullscreen = themes_path.."default/layouts/fullscreenw.png"
-theme.layout_tilebottom = themes_path.."default/layouts/tilebottomw.png"
-theme.layout_tileleft   = themes_path.."default/layouts/tileleftw.png"
-theme.layout_tile = themes_path.."default/layouts/tilew.png"
-theme.layout_tiletop = themes_path.."default/layouts/tiletopw.png"
-theme.layout_spiral  = themes_path.."default/layouts/spiralw.png"
-theme.layout_dwindle = themes_path.."default/layouts/dwindlew.png"
-theme.layout_cornernw = themes_path.."default/layouts/cornernww.png"
-theme.layout_cornerne = themes_path.."default/layouts/cornernew.png"
-theme.layout_cornersw = themes_path.."default/layouts/cornersww.png"
-theme.layout_cornerse = themes_path.."default/layouts/cornersew.png"
-
-theme.awesome_icon = theme_assets.awesome_icon(
-    theme.menu_height, theme.bg_focus, theme.fg_focus
-)
-
-theme.icon_theme = nil
-
-return theme
-THEMEEOF
-
-# ── rc.lua ───────────────────────────────────────────────────────────
-# Same layout order (dwindle/spiral included), same keybindings, same
-# monitor setup as the NixOS Awesome config. Differences from that
-# version: this restores Awesome's own wibar (there's no quickshell
-# here), and points at real binary paths instead of Nix store paths.
-#
-# NOTE: the xrandr line below assumes the same monitor names
-# (DisplayPort-0/1/2, HDMI-A-0) as the NixOS box. Run `xrandr --query`
-# after first login and adjust the names below if XLibre reports them
-# differently.
-cat > "$AWESOME_DIR/rc.lua" << 'RCEOF'
-pcall(require, "luarocks.loader")
-
-local gears = require("gears")
-local awful = require("awful")
-require("awful.autofocus")
-local wibox = require("wibox")
-local beautiful = require("beautiful")
-local naughty = require("naughty")
-local menubar = require("menubar")
-local hotkeys_popup = require("awful.hotkeys_popup")
-require("awful.hotkeys_popup.keys")
-
-if awesome.startup_errors then
-    naughty.notify({ preset = naughty.config.presets.critical,
-                     title = "Oops, there were errors during startup!",
-                     text = awesome.startup_errors })
-end
-
-do
-    local in_error = false
-    awesome.connect_signal("debug::error", function (err)
-        if in_error then return end
-        in_error = true
-        naughty.notify({ preset = naughty.config.presets.critical,
-                         title = "Oops, an error happened!",
-                         text = tostring(err) })
-        in_error = false
-    end)
-end
-
-beautiful.init(os.getenv("HOME") .. "/.config/awesome/theme.lua")
-
+mod = "mod4"
 terminal = "alacritty"
-editor = os.getenv("EDITOR") or "nvim"
-editor_cmd = terminal .. " -e " .. editor
+launcher = "rofi -show drun -show-icons"
+browser = "firefox"
+file_manager = "thunar"
 
-modkey = "Mod4"
-
-awful.layout.layouts = {
-    awful.layout.suit.fair,
-    awful.layout.suit.tile,
-    awful.layout.suit.floating,
-    awful.layout.suit.tile.left,
-    awful.layout.suit.tile.bottom,
-    awful.layout.suit.tile.top,
-    awful.layout.suit.fair.horizontal,
-    awful.layout.suit.spiral,
-    awful.layout.suit.spiral.dwindle,
-    awful.layout.suit.max,
-    awful.layout.suit.max.fullscreen,
-    awful.layout.suit.magnifier,
-    awful.layout.suit.corner.nw,
+# ── Catppuccin Mocha ─────────────────────────────────────────────────
+c = {
+    "bg":     "#1e1e2e", "bg_alt": "#313244",
+    "fg":     "#cdd6f4", "fg_dim": "#6c7086",
+    "blue":   "#89b4fa", "green":  "#a6e3a1",
+    "red":    "#f38ba8", "peach":  "#fab387",
+    "mauve":  "#cba6f7", "teal":   "#94e2d5",
+    "yellow": "#f9e2af",
 }
 
--- Monitor setup: same layout as the NixOS box (DP-0 primary 165Hz,
--- DP-1 rotated right 144Hz, DP-2 144Hz, HDMI-A-0 off/mirror-on-demand).
--- Double check output names with `xrandr --query` if this doesn't apply.
-awful.spawn.with_shell(
-    "xrandr" ..
-    " --output DisplayPort-0 --mode 1920x1080 --rate 165 --pos 0x0 --rotate normal --primary" ..
-    " --output DisplayPort-1 --mode 1920x1080 --rate 144 --rotate right --right-of DisplayPort-0" ..
-    " --output DisplayPort-2 --mode 1920x1080 --rate 144 --rotate normal --right-of DisplayPort-1" ..
-    " --output HDMI-A-0 --off"
-)
+# ── Keys ─────────────────────────────────────────────────────────────
+keys = [
+    Key([mod], "h", lazy.layout.left()),
+    Key([mod], "l", lazy.layout.right()),
+    Key([mod], "j", lazy.layout.down()),
+    Key([mod], "k", lazy.layout.up()),
+    Key([mod], "space", lazy.layout.next()),
 
-awful.spawn("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
-awful.spawn("nm-applet")
-awful.spawn("blueman-applet")
-awful.spawn.with_shell("picom --daemon --backend glx --vsync")
-awful.spawn("dunst")
+    Key([mod, "shift"], "h", lazy.layout.shuffle_left()),
+    Key([mod, "shift"], "l", lazy.layout.shuffle_right()),
+    Key([mod, "shift"], "j", lazy.layout.shuffle_down()),
+    Key([mod, "shift"], "k", lazy.layout.shuffle_up()),
 
-local function set_wallpaper(s)
-    if beautiful.wallpaper then
-        local wallpaper = beautiful.wallpaper
-        if type(wallpaper) == "function" then
-            wallpaper = wallpaper(s)
-        end
-        if gears.filesystem.file_readable(wallpaper) then
-            gears.wallpaper.maximized(wallpaper, s, false)
-        else
-            gears.wallpaper.set(beautiful.bg_normal)
-        end
-    end
-end
+    Key([mod, "control"], "h", lazy.layout.grow_left()),
+    Key([mod, "control"], "l", lazy.layout.grow_right()),
+    Key([mod, "control"], "j", lazy.layout.grow_down()),
+    Key([mod, "control"], "k", lazy.layout.grow_up()),
+    Key([mod], "n", lazy.layout.normalize()),
 
-screen.connect_signal("property::geometry", set_wallpaper)
+    Key([mod], "Tab", lazy.next_layout()),
+    Key([mod], "f", lazy.window.toggle_fullscreen()),
+    Key([mod, "shift"], "f", lazy.window.toggle_floating()),
 
-awful.screen.connect_for_each_screen(function(s)
-    set_wallpaper(s)
-    awful.tag({ "1", "2", "3", "4", "5", "6", "7", "8", "9" }, s, awful.layout.layouts[1])
-    s.mypromptbox = awful.widget.prompt()
-    s.mylayoutbox = awful.widget.layoutbox(s)
-    s.mylayoutbox:buttons(gears.table.join(
-        awful.button({ }, 1, function () awful.layout.inc( 1) end),
-        awful.button({ }, 3, function () awful.layout.inc(-1) end),
-        awful.button({ }, 4, function () awful.layout.inc( 1) end),
-        awful.button({ }, 5, function () awful.layout.inc(-1) end)
-    ))
+    Key([mod], "Return", lazy.spawn(terminal)),
+    Key([mod], "r",      lazy.spawn(launcher)),
+    Key([mod], "b",      lazy.spawn(browser)),
+    Key([mod], "e",      lazy.spawn(file_manager)),
+    Key([], "Print",     lazy.spawn("flameshot gui")),
 
-    s.mytaglist = awful.widget.taglist {
-        screen  = s,
-        filter  = awful.widget.taglist.filter.all,
-        buttons = gears.table.join(
-            awful.button({ }, 1, function(t) t:view_only() end),
-            awful.button({ modkey }, 1, function(t) if client.focus then client.focus:move_to_tag(t) end end),
-            awful.button({ }, 3, awful.tag.viewtoggle),
-            awful.button({ modkey }, 3, function(t) if client.focus then client.focus:toggle_tag(t) end end),
-            awful.button({ }, 4, function(t) awful.tag.viewnext(t.screen) end),
-            awful.button({ }, 5, function(t) awful.tag.viewprev(t.screen) end)
+    Key([mod], "q",          lazy.window.kill()),
+    Key([mod, "shift"], "r", lazy.reload_config()),
+    Key([mod, "shift"], "q", lazy.shutdown()),
+
+    Key([], "XF86AudioRaiseVolume",  lazy.spawn("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+")),
+    Key([], "XF86AudioLowerVolume",  lazy.spawn("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-")),
+    Key([], "XF86AudioMute",         lazy.spawn("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle")),
+    Key([], "XF86MonBrightnessUp",   lazy.spawn("brightnessctl set +5%")),
+    Key([], "XF86MonBrightnessDown", lazy.spawn("brightnessctl set 5%-")),
+]
+
+# ── Groups ───────────────────────────────────────────────────────────
+groups = [Group(i) for i in "123456789"]
+for g in groups:
+    keys.extend([
+        Key([mod], g.name, lazy.group[g.name].toscreen()),
+        Key([mod, "shift"], g.name, lazy.window.togroup(g.name, switch_group=True)),
+    ])
+
+# ── Layouts ──────────────────────────────────────────────────────────
+lt = {"border_width": 2, "margin": 6, "border_focus": c["blue"], "border_normal": c["bg_alt"]}
+layouts = [
+    layout.Columns(**lt, border_on_single=True),
+    layout.MonadTall(**lt),
+    layout.Max(**lt),
+]
+
+# ── Bar ──────────────────────────────────────────────────────────────
+widget_defaults = dict(font="JetBrainsMono Nerd Font", fontsize=13, padding=8,
+                       foreground=c["fg"], background=c["bg"])
+extension_defaults = widget_defaults.copy()
+
+screens = [
+    Screen(top=bar.Bar([
+        widget.Spacer(length=8),
+        widget.GroupBox(
+            active=c["fg"], inactive=c["fg_dim"], highlight_method="line",
+            highlight_color=[c["bg"], c["bg_alt"]], this_current_screen_border=c["blue"],
+            urgent_border=c["red"], rounded=False, disable_drag=True, fontsize=15, padding_x=6,
         ),
-    }
+        widget.Sep(linewidth=1, padding=12, foreground=c["fg_dim"]),
+        widget.CurrentLayout(foreground=c["mauve"]),
+        widget.Spacer(),
+        widget.WindowName(foreground=c["fg_dim"], max_chars=60),
+        widget.Spacer(),
+        widget.Systray(padding=6),
+        widget.Sep(linewidth=1, padding=12, foreground=c["fg_dim"]),
+        widget.CPU(format="  {load_percent}%", foreground=c["teal"], update_interval=3),
+        widget.Memory(format="  {MemUsed:.1f}{mm}", foreground=c["green"], measure_mem="G", update_interval=3),
+        widget.Volume(fmt="  {}", foreground=c["peach"]),
+        widget.Clock(format="  %a %d %b  %H:%M", foreground=c["blue"]),
+        widget.Spacer(length=8),
+    ], size=30, background=c["bg"], margin=[4, 8, 0, 8], opacity=0.95)),
+]
 
-    s.mytasklist = awful.widget.tasklist {
-        screen  = s,
-        filter  = awful.widget.tasklist.filter.currenttags,
-        buttons = gears.table.join(
-            awful.button({ }, 1, function (c)
-                c:emit_signal("request::activate", "tasklist", {raise = true})
-            end),
-            awful.button({ }, 3, function() awful.menu.client_list({ theme = { width = 250 } }) end),
-            awful.button({ }, 4, function() awful.client.focus.byidx(1) end),
-            awful.button({ }, 5, function() awful.client.focus.byidx(-1) end)
-        ),
-    }
+# ── Mouse ────────────────────────────────────────────────────────────
+mouse = [
+    Drag([mod], "Button1", lazy.window.set_position_floating(), start=lazy.window.get_position()),
+    Drag([mod], "Button3", lazy.window.set_size_floating(), start=lazy.window.get_size()),
+    Click([mod], "Button2", lazy.window.bring_to_front()),
+]
 
-    s.mywibox = awful.wibar({ position = "top", screen = s, height = 28 })
-    s.mywibox:setup {
-        layout = wibox.layout.align.horizontal,
-        { -- Left
-            layout = wibox.layout.fixed.horizontal,
-            s.mytaglist,
-        },
-        s.mytasklist, -- Middle
-        { -- Right
-            layout = wibox.layout.fixed.horizontal,
-            wibox.widget.systray(),
-            wibox.widget.textclock(" %a %b %d  %H:%M:%S "),
-            s.mylayoutbox,
-        },
-    }
-end)
-
-root.buttons(gears.table.join(
-    awful.button({ }, 4, awful.tag.viewnext),
-    awful.button({ }, 5, awful.tag.viewprev)
-))
-
-globalkeys = gears.table.join(
-    awful.key({ modkey }, "s", hotkeys_popup.show_help,
-              {description="show help", group="awesome"}),
-    awful.key({ modkey }, "Escape", awful.tag.history.restore,
-              {description = "go back", group = "tag"}),
-
-    awful.key({ modkey }, "Left", function () awful.client.focus.bydirection("left") end,
-        {description = "focus left", group = "client"}),
-    awful.key({ modkey }, "Right", function () awful.client.focus.bydirection("right") end,
-        {description = "focus right", group = "client"}),
-    awful.key({ modkey }, "Up", function () awful.client.focus.bydirection("up") end,
-        {description = "focus up", group = "client"}),
-    awful.key({ modkey }, "Down", function () awful.client.focus.bydirection("down") end,
-        {description = "focus down", group = "client"}),
-
-    awful.key({ modkey }, "q", function ()
-        if client.focus then client.focus:kill() end
-    end, {description = "close focused window", group = "client"}),
-
-    awful.key({ modkey }, "e", function () awful.spawn("thunar") end,
-              {description = "open file manager", group = "launcher"}),
-    awful.key({ modkey }, "d", function () awful.spawn("toggle-hdmi") end,
-              {description = "toggle HDMI monitor", group = "screen"}),
-    awful.key({ modkey, "Shift" }, "x", function () awful.spawn("i3lock") end,
-              {description = "lock screen", group = "awesome"}),
-    awful.key({ }, "Print", function () awful.spawn("flameshot gui") end,
-              {description = "screenshot", group = "launcher"}),
-
-    awful.key({ }, "XF86AudioRaiseVolume", function () awful.spawn("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+") end,
-              {description = "raise volume", group = "media"}),
-    awful.key({ }, "XF86AudioLowerVolume", function () awful.spawn("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-") end,
-              {description = "lower volume", group = "media"}),
-    awful.key({ }, "XF86AudioMute", function () awful.spawn("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle") end,
-              {description = "mute", group = "media"}),
-    awful.key({ }, "XF86MonBrightnessUp", function () awful.spawn("brightnessctl set +5%") end,
-              {description = "brightness up", group = "media"}),
-    awful.key({ }, "XF86MonBrightnessDown", function () awful.spawn("brightnessctl set 5%-") end,
-              {description = "brightness down", group = "media"}),
-    awful.key({ }, "XF86AudioPlay", function () awful.spawn("playerctl play-pause") end,
-              {description = "play/pause", group = "media"}),
-    awful.key({ }, "XF86AudioNext", function () awful.spawn("playerctl next") end,
-              {description = "next track", group = "media"}),
-    awful.key({ }, "XF86AudioPrev", function () awful.spawn("playerctl previous") end,
-              {description = "previous track", group = "media"}),
-
-    awful.key({ modkey }, "j", function () awful.client.focus.byidx(1) end,
-        {description = "focus next by index", group = "client"}),
-    awful.key({ modkey }, "k", function () awful.client.focus.byidx(-1) end,
-        {description = "focus previous by index", group = "client"}),
-
-    awful.key({ modkey, "Shift" }, "j", function () awful.client.swap.byidx(1) end,
-              {description = "swap with next client by index", group = "client"}),
-    awful.key({ modkey, "Shift" }, "k", function () awful.client.swap.byidx(-1) end,
-              {description = "swap with previous client by index", group = "client"}),
-    awful.key({ modkey, "Control" }, "j", function () awful.screen.focus_relative(1) end,
-              {description = "focus the next screen", group = "screen"}),
-    awful.key({ modkey, "Control" }, "k", function () awful.screen.focus_relative(-1) end,
-              {description = "focus the previous screen", group = "screen"}),
-    awful.key({ modkey }, "u", awful.client.urgent.jumpto,
-              {description = "jump to urgent client", group = "client"}),
-    awful.key({ modkey }, "Tab", function ()
-        awful.client.focus.history.previous()
-        if client.focus then client.focus:raise() end
-    end, {description = "go back", group = "client"}),
-
-    awful.key({ modkey }, "Return", function () awful.spawn(terminal) end,
-              {description = "open a terminal", group = "launcher"}),
-    awful.key({ modkey, "Control" }, "r", awesome.restart,
-              {description = "reload awesome", group = "awesome"}),
-    awful.key({ modkey, "Shift" }, "q", awesome.quit,
-              {description = "quit awesome", group = "awesome"}),
-
-    awful.key({ modkey }, "l", function () awful.tag.incmwfact(0.05) end,
-              {description = "increase master width factor", group = "layout"}),
-    awful.key({ modkey }, "h", function () awful.tag.incmwfact(-0.05) end,
-              {description = "decrease master width factor", group = "layout"}),
-    awful.key({ modkey, "Shift" }, "h", function () awful.tag.incnmaster(1, nil, true) end,
-              {description = "increase the number of master clients", group = "layout"}),
-    awful.key({ modkey, "Shift" }, "l", function () awful.tag.incnmaster(-1, nil, true) end,
-              {description = "decrease the number of master clients", group = "layout"}),
-    awful.key({ modkey, "Control" }, "h", function () awful.tag.incncol(1, nil, true) end,
-              {description = "increase the number of columns", group = "layout"}),
-    awful.key({ modkey, "Control" }, "l", function () awful.tag.incncol(-1, nil, true) end,
-              {description = "decrease the number of columns", group = "layout"}),
-
-    awful.key({ modkey }, "space", function () awful.spawn("rofi -show drun -show-icons") end,
-              {description = "application launcher", group = "launcher"}),
-    awful.key({ modkey, "Control" }, "space", function () awful.layout.inc(1) end,
-              {description = "select next layout", group = "layout"}),
-    awful.key({ modkey, "Shift" }, "space", function () awful.layout.inc(-1) end,
-              {description = "select previous layout", group = "layout"}),
-
-    awful.key({ modkey, "Control" }, "n", function ()
-        local c = awful.client.restore()
-        if c then
-            c:emit_signal("request::activate", "key.unminimize", {raise = true})
-        end
-    end, {description = "restore minimized", group = "client"}),
-
-    awful.key({ modkey }, "r", function () awful.screen.focused().mypromptbox:run() end,
-              {description = "run prompt", group = "launcher"}),
-    awful.key({ modkey }, "p", function() menubar.show() end,
-              {description = "show the menubar", group = "launcher"})
+# ── Floating ─────────────────────────────────────────────────────────
+floating_layout = layout.Floating(
+    float_rules=[*layout.Floating.default_float_rules,
+        Match(wm_class="pavucontrol"), Match(wm_class="arandr"),
+        Match(wm_class="blueman-manager"), Match(wm_class="flameshot"),
+        Match(title="pinentry"),
+    ],
+    border_focus=c["mauve"], border_normal=c["bg_alt"], border_width=2,
 )
 
-clientkeys = gears.table.join(
-    awful.key({ modkey }, "f", function (c)
-        c.fullscreen = not c.fullscreen
-        c:raise()
-    end, {description = "toggle fullscreen", group = "client"}),
-    awful.key({ modkey, "Shift" }, "c", function (c) c:kill() end,
-              {description = "close", group = "client"}),
-    awful.key({ modkey, "Control" }, "space", awful.client.floating.toggle,
-              {description = "toggle floating", group = "client"}),
-    awful.key({ modkey, "Control" }, "Return", function (c) c:swap(awful.client.getmaster()) end,
-              {description = "move to master", group = "client"}),
-    awful.key({ modkey }, "o", function (c) c:move_to_screen() end,
-              {description = "move to screen", group = "client"}),
-    awful.key({ modkey }, "t", function (c) c.ontop = not c.ontop end,
-              {description = "toggle keep on top", group = "client"}),
-    awful.key({ modkey }, "n", function (c) c.minimized = true end,
-              {description = "minimize", group = "client"}),
-    awful.key({ modkey }, "m", function (c)
-        c.maximized = not c.maximized
-        c:raise()
-    end, {description = "(un)maximize", group = "client"})
-)
+# ── Autostart ────────────────────────────────────────────────────────
+@hook.subscribe.startup_once
+def autostart():
+    script = os.path.expanduser("~/.config/qtile/autostart.sh")
+    if os.path.isfile(script):
+        subprocess.Popen([script])
 
-for i = 1, 9 do
-    globalkeys = gears.table.join(globalkeys,
-        awful.key({ modkey }, "#" .. i + 9, function ()
-            local screen = awful.screen.focused()
-            local tag = screen.tags[i]
-            if tag then tag:view_only() end
-        end, {description = "view tag #"..i, group = "tag"}),
-        awful.key({ modkey, "Control" }, "#" .. i + 9, function ()
-            local screen = awful.screen.focused()
-            local tag = screen.tags[i]
-            if tag then awful.tag.viewtoggle(tag) end
-        end, {description = "toggle tag #" .. i, group = "tag"}),
-        awful.key({ modkey, "Shift" }, "#" .. i + 9, function ()
-            if client.focus then
-                local tag = client.focus.screen.tags[i]
-                if tag then client.focus:move_to_tag(tag) end
-            end
-        end, {description = "move focused client to tag #"..i, group = "tag"}),
-        awful.key({ modkey, "Control", "Shift" }, "#" .. i + 9, function ()
-            if client.focus then
-                local tag = client.focus.screen.tags[i]
-                if tag then client.focus:toggle_tag(tag) end
-            end
-        end, {description = "toggle focused client on tag #" .. i, group = "tag"})
-    )
-end
+dgroups_key_binder = None
+dgroups_app_rules = []
+follow_mouse_focus = True
+bring_front_click = False
+floats_kept_above = True
+cursor_warp = False
+auto_fullscreen = True
+focus_on_window_activation = "smart"
+reconfigure_screens = True
+auto_minimize = True
+wl_input_rules = None
+wmname = "Qtile"
+PYEOF
 
-clientbuttons = gears.table.join(
-    awful.button({ }, 1, function (c)
-        c:emit_signal("request::activate", "mouse_click", {raise = true})
-    end),
-    awful.button({ modkey }, 1, function (c)
-        c:emit_signal("request::activate", "mouse_click", {raise = true})
-        awful.mouse.client.move(c)
-    end),
-    awful.button({ modkey }, 3, function (c)
-        c:emit_signal("request::activate", "mouse_click", {raise = true})
-        awful.mouse.client.resize(c)
-    end)
-)
+# ── autostart.sh ─────────────────────────────────────────────────────
+cat > "$QTILE_DIR/autostart.sh" << 'SHEOF'
+#!/usr/bin/env bash
 
-root.keys(globalkeys)
+# Compositor
+picom --daemon --backend glx --vsync &
 
-awful.rules.rules = {
-    { rule = { },
-      properties = { border_width = beautiful.border_width,
-                     border_color = beautiful.border_normal,
-                     focus = awful.client.focus.filter,
-                     raise = true,
-                     keys = clientkeys,
-                     buttons = clientbuttons,
-                     screen = awful.screen.preferred,
-                     placement = awful.placement.no_overlap+awful.placement.no_offscreen
-     }
-    },
-    { rule_any = {
-        instance = { "DTA", "copyq", "pinentry" },
-        class = {
-          "Arandr", "Blueman-manager", "Gpick", "Kruler",
-          "MessageWin", "Sxiv", "Tor Browser", "Wpa_gui",
-          "veromix", "xtightvncviewer"},
-        name = { "Event Tester" },
-        role = { "AlarmWindow", "ConfigManager", "pop-up" }
-      }, properties = { floating = true }},
-}
-
-client.connect_signal("manage", function (c)
-    if awesome.startup
-      and not c.size_hints.user_position
-      and not c.size_hints.program_position then
-        awful.placement.no_offscreen(c)
-    end
-end)
-
-client.connect_signal("request::titlebars", function(c)
-    local buttons = gears.table.join(
-        awful.button({ }, 1, function()
-            c:emit_signal("request::activate", "titlebar", {raise = true})
-            awful.mouse.client.move(c)
-        end),
-        awful.button({ }, 3, function()
-            c:emit_signal("request::activate", "titlebar", {raise = true})
-            awful.mouse.client.resize(c)
-        end)
-    )
-    awful.titlebar(c) : setup {
-        { awful.titlebar.widget.iconwidget(c), buttons = buttons, layout = wibox.layout.fixed.horizontal },
-        { { align = "center", widget = awful.titlebar.widget.titlewidget(c) }, buttons = buttons, layout = wibox.layout.flex.horizontal },
-        { awful.titlebar.widget.floatingbutton(c), awful.titlebar.widget.maximizedbutton(c),
-          awful.titlebar.widget.stickybutton(c), awful.titlebar.widget.ontopbutton(c),
-          awful.titlebar.widget.closebutton(c), layout = wibox.layout.fixed.horizontal() },
-        layout = wibox.layout.align.horizontal
-    }
-end)
-
-client.connect_signal("mouse::enter", function(c)
-    c:emit_signal("request::activate", "mouse_enter", {raise = false})
-end)
-
-client.connect_signal("focus", function(c) c.border_color = beautiful.border_focus end)
-client.connect_signal("unfocus", function(c) c.border_color = beautiful.border_normal end)
-RCEOF
-
-# ── wallpaper ────────────────────────────────────────────────────────
-if [[ -f "$SCRIPT_DIR/wallpaper.jpg" ]]; then
-    cp "$SCRIPT_DIR/wallpaper.jpg" "$AWESOME_DIR/wallpaper.jpg"
-    echo "  → wallpaper.jpg copied in"
+# Wallpaper
+if [ -f ~/wallpaper.jpg ]; then
+    feh --bg-fill ~/wallpaper.jpg &
+elif [ -f ~/wallpaper.png ]; then
+    feh --bg-fill ~/wallpaper.png &
 else
-    echo "  → No wallpaper.jpg next to this script — Awesome will fall back"
-    echo "    to a solid background color until you drop one at"
-    echo "    $AWESOME_DIR/wallpaper.jpg"
+    xsetroot -solid "#1e1e2e" &
 fi
 
-chown -R "$REAL_USER:$REAL_USER" "$AWESOME_DIR"
+# Notifications
+dunst &
 
-# ── .xinitrc fallback (only used for manual `startx`, not LightDM) ────
+# Network tray
+nm-applet &
+
+# Polkit
+/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
+
+# Cursor
+xsetroot -cursor_name left_ptr &
+SHEOF
+chmod +x "$QTILE_DIR/autostart.sh"
+
+# ── .xinitrc fallback ────────────────────────────────────────────────
 cat > "$REAL_HOME/.xinitrc" << 'XIEOF'
 #!/bin/sh
 [ -d /etc/X11/xinit/xinitrc.d ] && for f in /etc/X11/xinit/xinitrc.d/?*.sh; do
     [ -x "$f" ] && . "$f"
 done
-exec awesome
+exec qtile start
 XIEOF
 chmod +x "$REAL_HOME/.xinitrc"
+
+chown -R "$REAL_USER:$REAL_USER" "$QTILE_DIR"
 chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.xinitrc"
 
 # =====================================================================
-# 20. ALACRITTY CONFIG
+# 18. ALACRITTY CONFIG
 # =====================================================================
 step "Writing Alacritty config"
 
@@ -894,7 +530,7 @@ ALEOF
 chown -R "$REAL_USER:$REAL_USER" "$ALACRITTY_DIR"
 
 # =====================================================================
-# 21. PICOM CONFIG
+# 19. PICOM CONFIG
 # =====================================================================
 step "Writing Picom config"
 
@@ -910,11 +546,7 @@ inactive-opacity = 0.92;
 frame-opacity = 1.0;
 inactive-opacity-override = false;
 
-# Fading off by default -- on the NixOS box this was the actual cause of
-# a perceptible "delay before anything appears" on every redraw, not
-# just window open/close. Flip to true only if you want it and have
-# confirmed it doesn't reintroduce that lag.
-fading = false;
+fading = true;
 fade-in-step = 0.03;
 fade-out-step = 0.03;
 fade-delta = 5;
@@ -940,7 +572,7 @@ PCEOF
 chown -R "$REAL_USER:$REAL_USER" "$PICOM_DIR"
 
 # =====================================================================
-# 22. DUNST CONFIG
+# 20. DUNST CONFIG
 # =====================================================================
 step "Writing Dunst config"
 
@@ -994,7 +626,7 @@ DNEOF
 chown -R "$REAL_USER:$REAL_USER" "$DUNST_DIR"
 
 # =====================================================================
-# 23. ROFI CONFIG
+# 21. ROFI CONFIG
 # =====================================================================
 step "Writing Rofi config"
 
@@ -1077,26 +709,18 @@ echo "════════════════════════�
 echo ""
 echo "  Installed:"
 echo "    • XLibre X server (xlibre-meta from xlibre-stable repo)"
-echo "    • Awesome + full config (dwindle/spiral layouts, same"
-echo "      keybindings as the NixOS box, native wibar)"
+echo "    • Qtile + full config (Catppuccin Mocha)"
 echo "    • LightDM display manager"
-echo "    • PipeWire audio, Bluetooth, NetworkManager"
-echo "    • Alacritty, Rofi, Picom (fade off), Dunst, Feh, Flameshot"
-echo "    • i3lock, playerctl, Flatpak + Flathub"
+echo "    • PipeWire audio"
+echo "    • Bluetooth (bluez + blueman)"
+echo "    • NetworkManager"
+echo "    • Alacritty, Rofi, Picom, Dunst, Feh, Flameshot"
 echo "    • JetBrainsMono Nerd Font + Noto fonts"
 echo "    • Firefox, yay (AUR helper)"
 echo "    • Build tools ready for ZarisWM"
 echo ""
-echo "  Snapper (Btrfs snapshots) was set up during the manual install"
-echo "  steps -- 'sudo snapper -c root list' to see snapshots,"
-echo "  'sudo snapper -c root create --description \"...\"' before"
-echo "  anything risky."
-echo ""
 echo "  Verify XLibre after reboot:"
 echo "    xdpyinfo | grep vendor"
-echo ""
-echo "  Double check monitor names match rc.lua's xrandr line:"
-echo "    xrandr --query"
 echo ""
 echo "  Build ZarisWM when ready:"
 echo "    git clone https://github.com/crosseyedCOBRA/zaris.git"
