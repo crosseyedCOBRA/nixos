@@ -10,6 +10,10 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
+  # NixOS's default `linuxPackages` is a conservative pin, not the newest
+  # available kernel — use the latest stable release instead.
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+
   # --- Networking ---
   networking.hostName = "nixos"; # keep in sync with flake.nix's `hostname` let-binding
   networking.networkmanager.enable = true;
@@ -51,26 +55,19 @@
   hardware.bluetooth.enable = true;
   services.blueman.enable = true;
 
-  # --- X11 + i3 ---
+  # --- X11 + Awesome ---
+  # Awesome is the sole daily-driver WM: chosen over i3, XFCE, dwm, and the
+  # Wayland compositors tried earlier for its native dwindle/master layouts,
+  # real mouse-driven tiling, and per-monitor tags without needing patches.
   services.xserver.enable = true;
-  services.xserver.windowManager.i3 = {
-    enable = true;
-    extraPackages = with pkgs; [
-      i3status
-      i3lock
-      i3blocks
-    ];
-  };
-  services.xserver.displayManager.lightdm.enable = true;
-  services.displayManager.defaultSession = "none+i3";
-
-  # --- XFCE / Awesome trial sessions ---
-  # NixOS automatically generates one login-screen entry per desktop-manager
-  # x window-manager combination, so enabling both of these also yields a
-  # third, hybrid "xfce+awesome" session (XFCE's session/panel with Awesome
-  # as the window manager instead of xfwm4) alongside the two plain ones.
-  services.xserver.desktopManager.xfce.enable = true;
   services.xserver.windowManager.awesome.enable = true;
+  # Reverted from greetd+tuigreet back to lightdm: greetd's X11 handling
+  # (sessions run through tuigreet's `startx` wrapper) turned out to be
+  # broken too (sessions opened and crashed within the same second per the
+  # journal), and since the Wayland WMs greetd was for are gone, there's no
+  # remaining reason not to go back to the known-good lightdm setup.
+  services.xserver.displayManager.lightdm.enable = true;
+  services.displayManager.defaultSession = "none+awesome";
 
   # --- Monitor layout ---
   # DisplayPort-0: primary, 165Hz. DisplayPort-1: rotated 90° right, to the
@@ -90,7 +87,6 @@
   # --- Theming ---
   # Required by home-manager's `dconf.settings` (used for GTK dark mode).
   programs.dconf.enable = true;
-  programs.xfconf.enable = true; # required by home-manager's xfconf.settings
 
   # --- Flatpak + desktop portals ---
   services.flatpak.enable = true;
@@ -136,6 +132,7 @@
     chromium
     brave
     claude-code
+    vesktop
     inputs.zen-browser.packages.${pkgs.system}.default # beta channel
 
     # --- Gaming ---

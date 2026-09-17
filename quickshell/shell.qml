@@ -1,5 +1,4 @@
 import Quickshell
-import Quickshell.I3
 import Quickshell.Io
 import Quickshell.Services.Pipewire
 import Quickshell.Services.SystemTray
@@ -21,9 +20,8 @@ ShellRoot {
     readonly property color colorOrange: "#ff9e64"
     readonly property color colorPink: "#f7768e"
 
-    // Awesome has no native IPC (unlike i3), so its rc.lua pushes per-screen
-    // tag state to this file (keyed by output name) whenever it changes.
-    // Used as a fallback below when I3's IPC isn't connected.
+    // Awesome has no native IPC, so its rc.lua pushes per-screen tag state
+    // to this file (keyed by output name) whenever it changes.
     FileView {
         id: awesomeTagsFile
         path: "/home/mike/.cache/awesome/tags.json"
@@ -38,7 +36,7 @@ ShellRoot {
         }
     }
 
-    // Fire-and-forget helper for clicking an Awesome-sourced workspace pill.
+    // Fire-and-forget helper for clicking a workspace pill.
     Process {
         id: awesomeViewTag
     }
@@ -74,7 +72,7 @@ ShellRoot {
                     spacing: 4
 
                     Repeater {
-                        model: I3.workspaces.length > 0 ? I3.workspaces : (root.awesomeTags[bar.screen.name] || [])
+                        model: root.awesomeTags[bar.screen.name] || []
 
                         Rectangle {
                             width: 28
@@ -96,16 +94,12 @@ ShellRoot {
                             MouseArea {
                                 anchors.fill: parent
                                 onClicked: {
-                                    if (modelData.activate) {
-                                        modelData.activate();
-                                    } else {
-                                        awesomeViewTag.command = [
-                                            "/home/mike/.config/quickshell/awesome-view-tag.sh",
-                                            bar.screen.name,
-                                            modelData.name
-                                        ];
-                                        awesomeViewTag.running = true;
-                                    }
+                                    awesomeViewTag.command = [
+                                        "/home/mike/.config/quickshell/awesome-view-tag.sh",
+                                        bar.screen.name,
+                                        modelData.name
+                                    ];
+                                    awesomeViewTag.running = true;
                                 }
                             }
                         }
@@ -138,7 +132,7 @@ ShellRoot {
                     // Audio (default sink volume)
                     Item {
                         id: audioWidget
-                        implicitWidth: volumeText.implicitWidth + 8
+                        implicitWidth: volumeIcon.implicitWidth + volumeText.implicitWidth + 12
                         implicitHeight: 22
 
                         property var sink: Pipewire.defaultAudioSink
@@ -147,25 +141,46 @@ ShellRoot {
                             objects: [ Pipewire.defaultAudioSink ]
                         }
 
-                        Text {
-                            id: volumeText
+                        RowLayout {
                             anchors.centerIn: parent
-                            color: root.colorText
-                            font.pixelSize: 13
-                            text: {
-                                const sink = audioWidget.sink;
-                                if (!sink || !sink.ready || !sink.audio) return "--";
-                                if (sink.audio.muted) return "🔇";
-                                return "🔊 " + Math.round(sink.audio.volume * 100) + "%";
+                            spacing: 4
+
+                            Text {
+                                id: volumeIcon
+                                font.family: "JetBrainsMono Nerd Font"
+                                font.pixelSize: 14
+                                color: root.colorText
+                                text: {
+                                    const sink = audioWidget.sink;
+                                    if (!sink || !sink.ready || !sink.audio) return "";
+                                    if (sink.audio.muted) return "";
+                                    return "";
+                                }
+                            }
+
+                            Text {
+                                id: volumeText
+                                color: root.colorText
+                                font.pixelSize: 13
+                                text: {
+                                    const sink = audioWidget.sink;
+                                    if (!sink || !sink.ready || !sink.audio) return "--";
+                                    if (sink.audio.muted) return "muted";
+                                    return Math.round(sink.audio.volume * 100) + "%";
+                                }
                             }
                         }
 
                         MouseArea {
                             anchors.fill: parent
-                            acceptedButtons: Qt.LeftButton
-                            onClicked: {
-                                const sink = audioWidget.sink;
-                                if (sink && sink.audio) sink.audio.muted = !sink.audio.muted;
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            onClicked: (mouse) => {
+                                if (mouse.button === Qt.RightButton) {
+                                    const sink = audioWidget.sink;
+                                    if (sink && sink.audio) sink.audio.muted = !sink.audio.muted;
+                                } else {
+                                    pavucontrolProcess.running = true;
+                                }
                             }
                             onWheel: (wheel) => {
                                 const sink = audioWidget.sink;
@@ -173,6 +188,11 @@ ShellRoot {
                                 const step = wheel.angleDelta.y > 0 ? 0.05 : -0.05;
                                 sink.audio.volume = Math.max(0, Math.min(1.5, sink.audio.volume + step));
                             }
+                        }
+
+                        Process {
+                            id: pavucontrolProcess
+                            command: [ "pavucontrol" ]
                         }
                     }
 
@@ -208,17 +228,6 @@ ShellRoot {
                         }
                     }
                 }
-            }
-
-            Rectangle {
-                anchors {
-                    left: parent.left
-                    right: parent.right
-                    bottom: parent.bottom
-                }
-                height: 2
-                color: root.colorOrange
-                opacity: 0.7
             }
         }
     }
