@@ -55,6 +55,14 @@
   hardware.bluetooth.enable = true;
   services.blueman.enable = true;
 
+  # --- RGB lighting (OpenRGB) ---
+  # Runs the OpenRGB SDK server as a systemd service; also installs the
+  # package, udev rules, and i2c-piix4 (AMD SMBus) for motherboard/RAM RGB.
+  services.hardware.openrgb = {
+    enable = true;
+    motherboard = "amd";
+  };
+
   # --- X11 + Awesome ---
   # Awesome is the sole daily-driver WM: chosen over i3, XFCE, dwm, and the
   # Wayland compositors tried earlier for its native dwindle/master layouts,

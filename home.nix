@@ -285,6 +285,7 @@ in
 
   xdg.enable = true;
   xdg.configFile."quickshell/shell.qml".source = ./quickshell/shell.qml;
+  xdg.configFile."quickshell/nix-snowflake-white.svg".source = ./assets/nix-snowflake-white.svg;
   xdg.configFile."awesome/rc.lua".source = ./awesome/rc.lua;
   xdg.configFile."awesome/theme.lua".source = ./awesome/theme.lua;
   xdg.configFile."awesome/wallpaper.jpg".source = wallpaper;
