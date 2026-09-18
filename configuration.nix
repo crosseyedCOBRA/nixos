@@ -149,6 +149,8 @@
     claude-code
     vesktop
     xdg-user-dirs
+    gnome-calculator
+    vscodium
     inputs.zen-browser.packages.${pkgs.system}.default # beta channel
 
     # --- Gaming ---
@@ -193,6 +195,8 @@
   # --- Flatpak apps (declarative via nix-flatpak) ---
   services.flatpak.packages = [
     "org.pvermeer.WebAppHub" # web app installer
+    "eu.betterbird.Betterbird" #email client
+    "com.chatterino.chatterino" #chatterino
   ];
 
   # This value determines the NixOS release from which the default
