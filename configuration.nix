@@ -151,6 +151,7 @@
     protonup-qt
     wineWow64Packages.stable
     winetricks
+    protonplus
   ];
 
   programs.firefox.enable = true;
@@ -161,7 +162,6 @@
     remotePlay.openFirewall = true;
     localNetworkGameTransfers.openFirewall = true;
     gamescopeSession.enable = true;
-    extraCompatPackages = [ pkgs.proton-ge-bin ];
   };
   programs.gamemode.enable = true;
   hardware.steam-hardware.enable = true; # controller udev rules
