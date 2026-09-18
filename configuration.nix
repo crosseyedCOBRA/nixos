@@ -165,6 +165,10 @@
   };
   programs.gamemode.enable = true;
   hardware.steam-hardware.enable = true; # controller udev rules
+  # Several UE5 titles (Monster Hunter Wilds, Lords of the Fallen, The Blood
+  # of Dawnwalker) crash or fail to launch under Proton with the kernel's
+  # default map-count limit.
+  boot.kernel.sysctl."vm.max_map_count" = 2147483642;
 
   # --- External drives ---
   # nofail so boot doesn't hang/fail if either drive is unplugged.
