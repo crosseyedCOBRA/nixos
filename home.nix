@@ -241,6 +241,25 @@ in
     # everything else (shadow, vsync, backend) unchanged.
     fade = false;
     shadow = true;
+    # vsync-aware frame pacing deliberately delays each render to just
+    # before the next vblank to cut latency, but on this AMD/glx combo it's
+    # what's actually reintroducing the same perceived redraw lag on
+    # bursty output like fastfetch -- disable it the same way fade was
+    # disabled above, leaving vsync itself (tear-free) on.
+    extraArgs = [ "--no-frame-pacing" ];
+    # Tooltips/menus/dnd previews are small, short-lived popups -- a full
+    # drop shadow on them (the default) looks oversized and out of place,
+    # most noticeably as a heavy box around Zen's context menus and
+    # tooltips. Kept out of `shadowExclude` (which would also strip
+    # shadows from normal windows matching a rule) since wintypes lets us
+    # target just these transient window types.
+    wintypes = {
+      tooltip = { shadow = false; };
+      utility = { shadow = false; };
+      dnd = { shadow = false; };
+      popup_menu = { opacity = 1.0; shadow = false; };
+      dropdown_menu = { opacity = 1.0; shadow = false; };
+    };
     settings = {
       corner-radius = 6;
     };
