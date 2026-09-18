@@ -40,6 +40,7 @@ in
     thunar
     i3lock # used by Awesome's lock-screen keybinding
     cortile
+    xfce4-whiskermenu-plugin # not in XFCE's default panel; add via Panel > Add New Items
 
     (writeShellScriptBin "toggle-hdmi" ''
       # Toggles HDMI-A-0 (which normally mirrors DisplayPort-0) on/off.
