@@ -96,6 +96,12 @@
   # Required by home-manager's `dconf.settings` (used for GTK dark mode).
   programs.dconf.enable = true;
 
+  # --- nix-ld ---
+  # Patches the dynamic loader for non-Nix binaries, e.g. compiled wheels
+  # (MarkupSafe, etc.) pulled in by pip inside a python venv, which
+  # otherwise can't find their libs since NixOS has no /lib64/ld-linux.
+  programs.nix-ld.enable = true;
+
   # --- Flatpak + desktop portals ---
   services.flatpak.enable = true;
   xdg.portal = {
@@ -137,6 +143,7 @@
     unzip
     p7zip
     file
+    python3
     chromium
     brave
     claude-code
