@@ -233,6 +233,18 @@ globalkeys = gears.table.join(
         function () awful.client.focus.bydirection("down") end,
         {description = "focus down", group = "client"}),
 
+    -- Next/previous workspace (tag) on the focused screen.
+    awful.key({ modkey, "Shift"   }, "Right", awful.tag.viewnext,
+        {description = "next workspace", group = "tag"}),
+    awful.key({ modkey, "Shift"   }, "Left", awful.tag.viewprev,
+        {description = "previous workspace", group = "tag"}),
+
+    -- Next/previous monitor (matches the existing modkey+Control+j/k).
+    awful.key({ modkey, "Mod1"    }, "Right", function () awful.screen.focus_relative(1) end,
+        {description = "focus the next monitor", group = "screen"}),
+    awful.key({ modkey, "Mod1"    }, "Left", function () awful.screen.focus_relative(-1) end,
+        {description = "focus the previous monitor", group = "screen"}),
+
     -- Close the focused window (in addition to the stock modkey+Shift+c).
     awful.key({ modkey,           }, "q",
         function ()
