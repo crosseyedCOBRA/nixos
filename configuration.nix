@@ -64,11 +64,14 @@
   };
 
   # --- X11 + Awesome ---
-  # Awesome is the sole daily-driver WM: chosen over i3, XFCE, dwm, and the
-  # Wayland compositors tried earlier for its native dwindle/master layouts,
-  # real mouse-driven tiling, and per-monitor tags without needing patches.
+  # Awesome is the daily-driver WM: chosen over i3, dwm, and the Wayland
+  # compositors tried earlier for its native dwindle/master layouts, real
+  # mouse-driven tiling, and per-monitor tags without needing patches. XFCE
+  # is also enabled below as a selectable session for when a full DE is
+  # wanted, but Awesome remains the default.
   services.xserver.enable = true;
   services.xserver.windowManager.awesome.enable = true;
+  services.xserver.desktopManager.xfce.enable = true;
   # Reverted from greetd+tuigreet back to lightdm: greetd's X11 handling
   # (sessions run through tuigreet's `startx` wrapper) turned out to be
   # broken too (sessions opened and crashed within the same second per the
