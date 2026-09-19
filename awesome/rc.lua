@@ -131,6 +131,11 @@ awful.spawn.with_shell(
 -- (Harmless if the "xfce+awesome" session's own agent is also running.)
 awful.spawn("polkit-agent")
 
+-- Screens should never blank/DPMS off just from being idle -- only the
+-- lock-screen script (home.nix) re-enables DPMS, for exactly as long as
+-- the session is locked.
+awful.spawn.with_shell("xset s off -dpms")
+
 local function set_wallpaper(s)
     -- Wallpaper
     if beautiful.wallpaper then
@@ -284,8 +289,10 @@ globalkeys = gears.table.join(
     awful.key({ modkey,           }, "d", function () awful.spawn("toggle-hdmi") end,
               {description = "toggle HDMI monitor", group = "screen"}),
 
-    -- Lock screen (matches the i3 setup)
-    awful.key({ modkey, "Shift"   }, "x", function () awful.spawn("i3lock") end,
+    -- Lock screen (matches the i3 setup). Runs the lock-screen wrapper
+    -- (home.nix), not bare i3lock, so DPMS turns on only for the
+    -- duration of the lock -- see the dpms-off spawn below.
+    awful.key({ modkey, "Shift"   }, "x", function () awful.spawn("lock-screen") end,
               {description = "lock screen", group = "awesome"}),
 
     -- Screenshot (matches the i3 setup)

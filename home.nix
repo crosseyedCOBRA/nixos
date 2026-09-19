@@ -34,7 +34,6 @@ in
     xclip
     feh
     thunar
-    i3lock # used by Awesome's lock-screen keybinding
 
     (writeShellScriptBin "toggle-hdmi" ''
       # Toggles HDMI-A-0 (which normally mirrors DisplayPort-0) on/off.
@@ -48,6 +47,31 @@ in
     polkit_gnome
     (writeShellScriptBin "polkit-agent" ''
       exec ${polkit_gnome}/libexec/polkit-gnome-authentication-agent-1
+    '')
+
+    # Screens otherwise never blank (DPMS/screensaver are disabled at
+    # Awesome startup, see rc.lua) -- this is the one place DPMS gets
+    # turned back on, for exactly as long as the session is locked, so
+    # the monitors do still sleep, just only while locked.
+    i3lock
+    (writeShellScriptBin "lock-screen" ''
+      ${xset}/bin/xset s on
+      ${xset}/bin/xset dpms 30 30 30
+      ${i3lock}/bin/i3lock --nofork
+      ${xset}/bin/xset s off
+      ${xset}/bin/xset -dpms
+    '')
+
+    (writeShellScriptBin "power-menu" ''
+      choice=$(printf 'Lock\nLogout\nSuspend\nReboot\nShutdown' | \
+        ${rofi}/bin/rofi -dmenu -p "Power" -theme-str 'listview { lines: 5; }')
+      case "$choice" in
+        Lock) lock-screen ;;
+        Logout) ${awesome}/bin/awesome-client 'awesome.quit()' ;;
+        Suspend) ${systemd}/bin/systemctl suspend ;;
+        Reboot) ${systemd}/bin/systemctl reboot ;;
+        Shutdown) ${systemd}/bin/systemctl poweroff ;;
+      esac
     '')
   ];
 

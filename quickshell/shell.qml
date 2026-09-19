@@ -517,6 +517,29 @@ ShellRoot {
                             command: [ "pavucontrol" ]
                         }
                     }
+
+                    // Power menu
+                    Item {
+                        width: 22
+                        height: 22
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "⏻"
+                            color: root.colorText
+                            font.pixelSize: 15
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: powerMenuProcess.running = true
+                        }
+
+                        Process {
+                            id: powerMenuProcess
+                            command: [ "power-menu" ]
+                        }
+                    }
                 }
             }
         }
