@@ -94,13 +94,14 @@ ShellRoot {
 
                 // --- Left: workspaces ---
                 RowLayout {
+                    id: workspaces
                     anchors.left: launcher.right
                     anchors.leftMargin: 10
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 4
 
                     Repeater {
-                        model: root.awesomeTags[bar.screen.name] || []
+                        model: (root.awesomeTags[bar.screen.name] || {}).tags || []
 
                         Rectangle {
                             width: 28
@@ -131,6 +132,27 @@ ShellRoot {
                                 }
                             }
                         }
+                    }
+                }
+
+                // --- Layout indicator: this monitor's current layout ---
+                Rectangle {
+                    anchors.left: workspaces.right
+                    anchors.leftMargin: 10
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: 4
+                    color: root.colorSurface
+                    border.width: 1
+                    border.color: root.colorBorder
+                    width: layoutLabel.implicitWidth + 12
+                    height: 22
+
+                    Text {
+                        id: layoutLabel
+                        anchors.centerIn: parent
+                        text: (root.awesomeTags[bar.screen.name] || {}).layout || ""
+                        color: root.colorMuted
+                        font.pixelSize: 12
                     }
                 }
 

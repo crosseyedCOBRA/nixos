@@ -165,7 +165,8 @@ end)
 -- {{{ Export tag state for quickshell to consume
 -- Quickshell has no native Awesome IPC (unlike i3), so we push per-screen
 -- tag state out to a file it watches instead. Keyed by output name (e.g.
--- "DisplayPort-0") so each monitor's bar shows that monitor's own tags.
+-- "DisplayPort-0") so each monitor's bar shows that monitor's own tags
+-- and its own current layout.
 local tags_state_path = os.getenv("HOME") .. "/.cache/awesome/tags.json"
 
 local function dump_tags_state()
@@ -180,7 +181,11 @@ local function dump_tags_state()
                     t.name, tostring(t.selected == true), tostring(t.urgent == true)
                 ))
             end
-            table.insert(screen_parts, string.format('%q:[%s]', output_name, table.concat(tag_parts, ",")))
+            local layout_name = scr.selected_tag and awful.layout.getname(scr.selected_tag.layout) or ""
+            table.insert(screen_parts, string.format(
+                '%q:{"tags":[%s],"layout":%q}',
+                output_name, table.concat(tag_parts, ","), layout_name
+            ))
         end
     end
     local f = io.open(tags_state_path, "w")
@@ -192,7 +197,26 @@ end
 
 tag.connect_signal("property::selected", dump_tags_state)
 tag.connect_signal("property::urgent", dump_tags_state)
+tag.connect_signal("property::layout", dump_tags_state)
 dump_tags_state()
+-- }}}
+
+-- {{{ Layout-change notification
+-- Popped up on the tag's own screen so switching layout on one monitor
+-- doesn't show a notification on another. Only for the screen's
+-- currently-viewed tag: awful.layout.inc() also touches hidden tags'
+-- layouts when cycling nmaster/ncol, which shouldn't pop up anything.
+tag.connect_signal("property::layout", function(t)
+    if not t.selected then return end
+    local name = awful.layout.getname(t.layout)
+    naughty.notify({
+        screen = t.screen,
+        title = "Layout",
+        text = name,
+        icon = beautiful["layout_" .. name],
+        timeout = 1.5,
+    })
+end)
 -- }}}
 
 -- Only in the standalone Awesome session (not the "xfce+awesome" hybrid,
