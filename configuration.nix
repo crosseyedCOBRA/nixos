@@ -78,6 +78,13 @@
   services.xserver.displayManager.lightdm.enable = true;
   services.displayManager.defaultSession = "none+awesome";
 
+  # Required for i3lock to actually authenticate: this generates
+  # /etc/pam.d/i3lock. Without it, i3lock has no PAM stack to check the
+  # password against and rejects every attempt, correct or not -- the
+  # i3 window manager module sets this automatically, but nothing does
+  # for Awesome, so it must be requested explicitly here.
+  programs.i3lock.enable = true;
+
   # --- Monitor layout ---
   # DisplayPort-0: primary, 165Hz. DisplayPort-1: rotated 90° right, to the
   # right of DP-0. DisplayPort-2: further right of (rotated) DP-1, 144Hz.
@@ -200,6 +207,7 @@
     "org.pvermeer.WebAppHub" # web app installer
     "eu.betterbird.Betterbird" #email client
     "com.chatterino.chatterino" #chatterino
+    "io.github.radiolamp.mangojuice" #mangojuice
   ];
 
   # This value determines the NixOS release from which the default

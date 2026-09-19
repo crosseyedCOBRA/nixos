@@ -52,8 +52,9 @@ in
     # Screens otherwise never blank (DPMS/screensaver are disabled at
     # Awesome startup, see rc.lua) -- this is the one place DPMS gets
     # turned back on, for exactly as long as the session is locked, so
-    # the monitors do still sleep, just only while locked.
-    i3lock
+    # the monitors do still sleep, just only while locked. i3lock itself
+    # is installed system-wide by `programs.i3lock.enable` in
+    # configuration.nix (required for it to actually authenticate).
     (writeShellScriptBin "lock-screen" ''
       ${xset}/bin/xset s on
       ${xset}/bin/xset dpms 30 30 30
