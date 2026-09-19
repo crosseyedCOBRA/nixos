@@ -3,10 +3,6 @@
 let
   wallpaper = ./assets/wallpaper.jpg;
 
-  # Not in nixpkgs; builds the upstream binary release from source.
-  # https://github.com/leukipp/cortile
-  cortile = pkgs.callPackage ./packages/cortile.nix { };
-
   # Palette pulled from assets/wallpaper.jpg (deep space navy, nebula
   # blue/purple, warm cloud orange, coral planet surface).
   colors = {
@@ -39,7 +35,6 @@ in
     feh
     thunar
     i3lock # used by Awesome's lock-screen keybinding
-    cortile
 
     (writeShellScriptBin "toggle-hdmi" ''
       # Toggles HDMI-A-0 (which normally mirrors DisplayPort-0) on/off.
@@ -306,22 +301,6 @@ in
       Restart = "on-failure";
     };
   };
-
-  # Cortile is a tiling helper for non-tiling WMs, meant for the Cinnamon
-  # session. No OnlyShowIn restriction: nixpkgs's packaged Cinnamon xsession
-  # doesn't set DesktopNames, so $XDG_CURRENT_DESKTOP can't be relied on to
-  # say "X-Cinnamon" here. That's harmless in practice -- Awesome doesn't
-  # process XDG autostart entries at all, so this only ever runs under
-  # Cinnamon regardless. If a third DE gets added later, gate this properly
-  # (check `echo $XDG_CURRENT_DESKTOP` in that session first).
-  xdg.configFile."autostart/cortile.desktop".text = ''
-    [Desktop Entry]
-    Type=Application
-    Name=Cortile
-    Comment=Auto tiling manager
-    Exec=${cortile}/bin/cortile
-    X-GNOME-Autostart-enabled=true
-  '';
 
   xdg.enable = true;
   xdg.configFile."quickshell/shell.qml".source = ./quickshell/shell.qml;

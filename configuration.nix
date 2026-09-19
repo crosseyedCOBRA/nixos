@@ -64,15 +64,12 @@
   };
 
   # --- X11 + Awesome ---
-  # Awesome is the daily-driver WM: chosen over i3, dwm, and the Wayland
-  # compositors tried earlier for its native dwindle/master layouts, real
-  # mouse-driven tiling, and per-monitor tags without needing patches.
-  # Cinnamon is also enabled below as a selectable session for when a full
-  # DE is wanted (testing Cortile's auto-tiling there), but Awesome remains
-  # the default.
+  # Awesome is the only WM/DE on this system: chosen over i3, dwm, the
+  # Wayland compositors tried earlier, and the XFCE/Cinnamon DEs tried
+  # for testing, for its native dwindle/master layouts, real mouse-driven
+  # tiling, and per-monitor tags without needing patches.
   services.xserver.enable = true;
   services.xserver.windowManager.awesome.enable = true;
-  services.xserver.desktopManager.cinnamon.enable = true;
   # Reverted from greetd+tuigreet back to lightdm: greetd's X11 handling
   # (sessions run through tuigreet's `startx` wrapper) turned out to be
   # broken too (sessions opened and crashed within the same second per the
