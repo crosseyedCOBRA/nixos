@@ -14,23 +14,41 @@
   boot.extraModulePackages = [ ];
 
   fileSystems."/" =
-    { device = "/dev/disk/by-uuid/1731d886-3148-4baf-a82d-bbee3428aea4";
+    { device = "/dev/disk/by-uuid/31bb860a-61c2-4206-8e95-ab28e1ff63b5";
       fsType = "btrfs";
     };
 
   fileSystems."/nix" =
-    { device = "/dev/disk/by-uuid/1731d886-3148-4baf-a82d-bbee3428aea4";
+    { device = "/dev/disk/by-uuid/31bb860a-61c2-4206-8e95-ab28e1ff63b5";
       fsType = "btrfs";
       options = [ "subvol=nix" ];
     };
 
   fileSystems."/home" =
-    { device = "/dev/disk/by-uuid/1731d886-3148-4baf-a82d-bbee3428aea4";
+    { device = "/dev/disk/by-uuid/31bb860a-61c2-4206-8e95-ab28e1ff63b5";
       fsType = "btrfs";
       options = [ "subvol=home" ];
     };
 
-  swapDevices = [ ];
+  fileSystems."/mnt/samsung" =
+    { device = "/dev/disk/by-uuid/f2602e89-279c-42e7-8f9c-0b2cbeb06bcc";
+      fsType = "xfs";
+    };
+
+  fileSystems."/mnt/wd" =
+    { device = "/dev/disk/by-uuid/bfc665b1-20ba-4eca-927e-aaa2cc0656ae";
+      fsType = "xfs";
+    };
+
+  fileSystems."/boot" =
+    { device = "/dev/disk/by-uuid/4492-8A9C";
+      fsType = "vfat";
+      options = [ "fmask=0022" "dmask=0022" ];
+    };
+
+  swapDevices =
+    [ { device = "/dev/disk/by-uuid/23ff5a76-98de-44bc-857a-3c602f155a54"; }
+    ];
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
