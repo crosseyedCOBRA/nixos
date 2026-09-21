@@ -17,6 +17,7 @@ let
     orange = "#ff9e64";
     pink = "#f7768e";
   };
+
 in
 {
   home.username = username;
@@ -73,6 +74,142 @@ in
         Reboot) ${systemd}/bin/systemctl reboot ;;
         Shutdown) ${systemd}/bin/systemctl poweroff ;;
       esac
+    '')
+
+    # --- Hyprland session (./hyprland/) ---
+    kitty
+    wofi
+    waybar
+    hyprpaper
+    hyprlock
+    matugen # wallpaper -> ~/.config/hypr/colors.css, see ./hyprland/matugen/
+    swaynotificationcenter # notification daemon, no Wayland/layer-shell support in dunst (Awesome's daemon)
+
+    # wofi equivalent of power-menu above, bound to $mainMod+M in
+    # hyprland.lua. Lock uses hyprlock directly, not the lock-screen
+    # script above (that one's xset/i3lock calls are X11-only).
+    (writeShellScriptBin "wofi-power" ''
+      choice=$(printf 'Lock\nLogout\nSuspend\nReboot\nShutdown' | \
+        ${wofi}/bin/wofi -dmenu -p "Power")
+      case "$choice" in
+        Lock) ${hyprlock}/bin/hyprlock ;;
+        Logout) ${hyprland}/bin/hyprctl dispatch exit ;;
+        Suspend) ${systemd}/bin/systemctl suspend ;;
+        Reboot) ${systemd}/bin/systemctl reboot ;;
+        Shutdown) ${systemd}/bin/systemctl poweroff ;;
+      esac
+    '')
+
+    # Regenerates colors from ~/.config/hypr/colors.css (already written
+    # by matugen -- see ./hyprland/matugen/) into every app that needs a
+    # live push rather than just re-reading a file on its own next
+    # launch. Shared between hyprland.lua's autostart (after the
+    # session's default-wallpaper matugen run) and wallpaper-picker
+    # below (after each new pick), so both paths apply colors identically.
+    (writeShellScriptBin "apply-colors" ''
+      colors_css="$HOME/.config/hypr/colors.css"
+      [ -f "$colors_css" ] || exit 0
+
+      get_color() {
+        ${gnused}/bin/sed -n "s/^@define-color $1 \(#[0-9a-fA-F]\{6\}\);/\1/p" "$colors_css"
+      }
+
+      accent=$(get_color accent)
+      accent2=$(get_color accent2)
+
+      # Hyprland's active border: `hyprctl keyword` applies a config
+      # value immediately, no restart/reload needed -- the value syntax
+      # is the same gradient format hyprland.lua's general.col.active_border
+      # uses, just as a flat string instead of a Lua table.
+      if [ -n "$accent" ] && [ -n "$accent2" ]; then
+        ${hyprland}/bin/hyprctl keyword general:col.active_border \
+          "rgba(''${accent#\#}ee) rgba(''${accent2#\#}ee) 45deg" >/dev/null 2>&1
+      fi
+
+      # waybar's nix package wraps the real binary (bin/waybar execs into
+      # bin/.waybar-wrapped to set GTK_PATH/XDG_DATA_DIRS/etc) -- the
+      # kernel sets the process's comm name from the *wrapped* binary
+      # after that exec, so `pkill -x waybar` never matches it and the
+      # old bar (stale colors) is left running alongside a new one.
+      # `pkill -f` matches the full command line instead, which always
+      # contains "waybar" (it's in the nix store path itself) regardless
+      # of what the wrapper does to comm/argv.
+      ${procps}/bin/pkill -f waybar 2>/dev/null
+      ${waybar}/bin/waybar &
+      disown
+
+      # kitty: each running instance listens on its own PID-scoped remote
+      # control socket (kitty.conf's listen_on unix:/tmp/kitty-{kitty_pid}).
+      # -a applies to every window in that instance, -c also persists it
+      # as the configured colors so new tabs/windows opened after this
+      # match too, without needing colors.conf to be re-included.
+      for sock in /tmp/kitty-*; do
+        [ -S "$sock" ] || continue
+        ${kitty}/bin/kitty @ --to "unix:$sock" set-colors -a -c "$HOME/.config/kitty/colors.conf" >/dev/null 2>&1
+      done
+
+      # swaync: style.css @imports the same colors.css waybar/wofi do, so
+      # a plain CSS reload (no restart) is enough to pick up new colors.
+      ${swaynotificationcenter}/bin/swaync-client --reload-css >/dev/null 2>&1
+    '')
+
+    # Bound to $mainMod+W in hyprland.lua. hyprpaper (this version) has no
+    # live IPC/reload -- confirmed by reading its source, it has no
+    # socket listener or signal handler at all, unlike what its own wiki
+    # implies -- so swapping wallpaper means kill + relaunch against a
+    # freshly-written config, not an in-place command. Written to a
+    # separate runtime config rather than overwriting
+    # ~/.config/hypr/hyprpaper.conf, since that one's a home-manager
+    # store symlink this can't write to anyway, and this keeps every
+    # session's *first* wallpaper (via hyprland.lua's autostart)
+    # deterministic regardless of whatever was last picked here.
+    (writeShellScriptBin "wallpaper-picker" ''
+      wallpaper_dir="$HOME/Pictures/wallpapers"
+      runtime_conf="$HOME/.cache/hypr/hyprpaper-runtime.conf"
+
+      [ -d "$wallpaper_dir" ] || exit 0
+
+      entries=""
+      for f in "$wallpaper_dir"/*.jpg "$wallpaper_dir"/*.jpeg "$wallpaper_dir"/*.png "$wallpaper_dir"/*.webp; do
+        [ -f "$f" ] || continue
+        # No :text: label segment -- confirmed by reading wofi's own
+        # parse_images()/wofi_dmenu_exec() (src/wofi.c, modes/dmenu.c):
+        # a bare `img:<path>` entry is valid on its own (just no label
+        # widget gets created), and dmenu mode prints the raw selected
+        # line back unmodified, so plain `img:<path>` round-trips fine.
+        # Command substitution strips trailing newlines, so the
+        # separator has to be appended *outside* of it.
+        entries="$entries$(printf 'img:%s' "$f")"$'\n'
+      done
+      [ -n "$entries" ] || exit 0
+
+      # columns/image_size make this a wide image grid instead of wofi's
+      # default single-column vertical list, so wallpapers are actually
+      # previewable at a glance rather than a tiny 32px-tall scrolling
+      # list (confirmed via wofi.5's documented config keys).
+      choice=$(printf '%s' "$entries" | ${wofi}/bin/wofi -dmenu --allow-images -p "Wallpaper" \
+        -W 960 -H 640 --define columns=4 --define image_size=200)
+      [ -n "$choice" ] || exit 0
+
+      path=$(printf '%s' "$choice" | ${gnused}/bin/sed -n 's/^img:\(.*\)$/\1/p')
+      [ -n "$path" ] && [ -f "$path" ] || exit 0
+
+      ${coreutils}/bin/mkdir -p "$(${coreutils}/bin/dirname "$runtime_conf")"
+      ${coreutils}/bin/printf '%s\n' \
+        "wallpaper {" \
+        "    monitor =" \
+        "    path = $path" \
+        "    fit_mode = cover" \
+        "}" > "$runtime_conf"
+
+      ${procps}/bin/pkill -x hyprpaper 2>/dev/null
+      sleep 0.2
+      ${hyprpaper}/bin/hyprpaper -c "$runtime_conf" &
+      disown
+
+      ${matugen}/bin/matugen image "$path" --mode dark
+
+      apply-colors
     '')
   ];
 
@@ -338,4 +475,24 @@ in
     executable = true;
   };
   xdg.configFile."fastfetch/config.jsonc".source = ./fastfetch/config.jsonc;
+
+  # --- Hyprland session ---
+  # Hyprland 0.55+ defaults to Lua config (hyprlang/.conf is deprecated).
+  xdg.configFile."hypr/hyprland.lua".source = ./hyprland/hyprland.lua;
+  xdg.configFile."hypr/hyprpaper.conf".source = ./hyprland/hyprpaper.conf;
+  xdg.configFile."hypr/hyprlock.conf".source = ./hyprland/hyprlock.conf;
+  xdg.configFile."waybar/config.jsonc".source = ./hyprland/waybar/config.jsonc;
+  xdg.configFile."waybar/style.css".source = ./hyprland/waybar/style.css;
+  xdg.configFile."wofi/style.css".source = ./hyprland/wofi/style.css;
+  # config.toml + the template are versioned; the *generated* colors.css
+  # they produce (~/.config/hypr/colors.css) deliberately isn't deployed
+  # here -- matugen needs to write there at runtime (hyprland.lua's
+  # autostart), and a file this deploys would be a read-only store
+  # symlink matugen couldn't overwrite.
+  xdg.configFile."matugen/config.toml".source = ./hyprland/matugen/config.toml;
+  xdg.configFile."matugen/templates/colors.css".source = ./hyprland/matugen/templates/colors.css;
+  xdg.configFile."matugen/templates/kitty-colors.conf".source = ./hyprland/matugen/templates/kitty-colors.conf;
+  xdg.configFile."kitty/kitty.conf".source = ./hyprland/kitty/kitty.conf;
+  xdg.configFile."swaync/config.json".source = ./hyprland/swaync/config.json;
+  xdg.configFile."swaync/style.css".source = ./hyprland/swaync/style.css;
 }

@@ -64,19 +64,88 @@
   };
 
   # --- X11 + Awesome ---
-  # Awesome is the only WM/DE on this system: chosen over i3, dwm, the
-  # Wayland compositors tried earlier, and the XFCE/Cinnamon DEs tried
-  # for testing, for its native dwindle/master layouts, real mouse-driven
-  # tiling, and per-monitor tags without needing patches.
+  # Awesome is the daily-driver window manager: chosen over i3, Plasma, and
+  # the XFCE/Cinnamon DEs tried for testing, for its native dwindle/master
+  # layouts, real mouse-driven tiling, and per-monitor tags without needing
+  # patches. Hyprland (below) is a second, genuinely-riced session, not a
+  # replacement -- see ./hyprland/.
   services.xserver.enable = true;
   services.xserver.windowManager.awesome.enable = true;
-  # Reverted from greetd+tuigreet back to lightdm: greetd's X11 handling
-  # (sessions run through tuigreet's `startx` wrapper) turned out to be
-  # broken too (sessions opened and crashed within the same second per the
-  # journal), and since the Wayland WMs greetd was for are gone, there's no
-  # remaining reason not to go back to the known-good lightdm setup.
-  services.xserver.displayManager.lightdm.enable = true;
-  services.displayManager.defaultSession = "none+awesome";
+
+  # --- Hyprland ---
+  # Registers its session via services.displayManager.sessionPackages; no
+  # display-manager coupling by itself, but see services.greetd below for
+  # why lightdm can't be the display manager anymore now that this exists.
+  # xwayland.enable defaults to true, needed for Steam/Heroic under it.
+  # Config lives in ./hyprland/ (see home.nix for how it's deployed).
+  programs.hyprland.enable = true;
+
+  # lightdm cannot launch Hyprland (or any Wayland session) at all -- it
+  # has no mechanism to start a Wayland compositor, only X. greetd+tuigreet
+  # is the fix: tuigreet has *separate* `-x/--xsessions` (auto-wrapped with
+  # `startx`, which itself starts the X server and sets up Xauthority) and
+  # `-s/--sessions` (Wayland, run directly) flags, and routing each
+  # session through the flag matching its actual type is what makes both
+  # Awesome and Hyprland work from the same greeter. Verified via
+  # journalctl: real successful logins across multiple boots, not just a
+  # config that looks right on paper.
+  services.greetd = {
+    enable = true;
+    useTextGreeter = true;
+    settings.default_session.command =
+      let
+        sessions = config.services.displayManager.sessionData.desktops;
+      in
+      lib.concatStringsSep " " [
+        "${pkgs.tuigreet}/bin/tuigreet"
+        "--time"
+        "--remember --remember-session" # sticky across reboots/logouts
+        "--background matrix"
+        # Blue-toned instead of the default green, matching the rest of
+        # this site's palette (colorText/colorBlue/colorBorder). No
+        # quoting needed/wanted: greetd's `command` is whitespace-split,
+        # not shell-parsed, and this value has no spaces in it anyway.
+        "--matrix-colors #c0caf5,#7aa2f7,#292e42"
+        "--xsessions ${sessions}/share/xsessions"
+        "--sessions ${sessions}/share/wayland-sessions"
+        # Hyprland as the initial default: --cmd sets what runs before any
+        # session has ever been manually picked. --remember-session then
+        # overrides this with whatever *was* picked, on every login after
+        # the first manual selection (per tuigreet's own docs).
+        "--cmd ${config.programs.hyprland.package}/bin/start-hyprland"
+      ];
+  };
+  # greetd.service's own systemd PATH is a minimal curated list (coreutils/
+  # findutils/grep/sed/systemd only, no /run/current-system/sw/bin).
+  # `startx`'s own script shells out to more tools by bare name: `xinit`
+  # (does the real work, ships alongside startx), `xauth` (sets up the X
+  # cookie), and `hexdump` (generates it -- a *hard* `exit 1` if missing).
+  # Hyprland's own `start-hyprland` launcher execs the real `Hyprland`
+  # compositor binary by bare name too, and once running, hyprland.lua's
+  # autostart (waybar/hyprpaper/wofi-power/hyprlock) execs *those* by bare
+  # name as children of that same process tree -- they're home-manager
+  # packages, not environment.systemPackages, so config.system.path alone
+  # doesn't cover them; the per-user home-manager profile does.
+  systemd.services.greetd.path = [
+    config.system.path
+    config.home-manager.users.${username}.home.profileDirectory
+    pkgs.xauth
+    pkgs.util-linux # hexdump
+    pkgs.kbd # deallocvt, startx's cleanup step -- degrades gracefully if missing, included anyway
+  ];
+  # services.displayManager.defaultSession isn't consulted by greetd/tuigreet
+  # (only LightDM/GDM/SDDM read it) -- kept in sync with the --cmd default
+  # above purely so this file doesn't contradict itself, plus it still
+  # feeds the sessionNames assertion. The actual default comes from
+  # tuigreet's --cmd/--remember-session, not this option.
+  services.displayManager.defaultSession = "hyprland";
+
+  # Middle-click emulation (simultaneous left+right = middle button) is on
+  # by default and fires spuriously during fast in-game clicking -- off.
+  services.libinput.mouse.middleEmulation = false;
+
+  # Backs waybar's power-profiles-daemon module (./hyprland/waybar/config.jsonc).
+  services.power-profiles-daemon.enable = true;
 
   # Required for i3lock to actually authenticate: this generates
   # /etc/pam.d/i3lock. Without it, i3lock has no PAM stack to check the
@@ -84,6 +153,15 @@
   # i3 window manager module sets this automatically, but nothing does
   # for Awesome, so it must be requested explicitly here.
   programs.i3lock.enable = true;
+
+  # Same PAM requirement as i3lock above, for hyprlock (Hyprland session,
+  # see ./hyprland/hyprlock.conf). Deliberately not programs.hyprlock.enable:
+  # that module also force-enables services.hypridle (idle-triggered
+  # auto-lock/DPMS), which nothing here asked for and which conflicts with
+  # this system's existing "screens never auto-blank, only the lock script
+  # re-enables DPMS" design (see rc.lua/home.nix's lock-screen). Just the
+  # PAM stack is needed for a manually-invoked hyprlock to authenticate.
+  security.pam.services.hyprlock = { };
 
   # --- Monitor layout ---
   # DisplayPort-0: primary, 165Hz. DisplayPort-1: rotated 90° right, to the
@@ -124,6 +202,7 @@
     noto-fonts
     noto-fonts-color-emoji
     font-awesome
+    inter # waybar/wofi's font-family (./hyprland/waybar/style.css, ./hyprland/wofi/style.css)
   ] ++ lib.attrValues (lib.filterAttrs (_: lib.isDerivation) nerd-fonts);
 
   # --- Printing ---
@@ -146,6 +225,7 @@
     vim
     fastfetch
     wget
+    xinit # provides `startx`, tuigreet's default X11 session wrapper (see services.greetd above)
     curl
     git
     unzip

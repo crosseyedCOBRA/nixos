@@ -61,11 +61,13 @@ editor_cmd = terminal .. " -e " .. editor
 modkey = "Mod4"
 
 -- Table of layouts to cover with awful.layout.inc, order matters.
--- The first entry is the default layout new tags start on
--- (see awful.tag(...) below); fair is that default, tile is next.
+-- The first entry is the default layout new tags start on (see
+-- awful.tag(...) below): tile keeps the focused/master client on the left
+-- and stacks every other tiled client into a column on the right, so new
+-- windows land on the right side instead of fair's unpredictable grid.
 awful.layout.layouts = {
-    awful.layout.suit.fair,
     awful.layout.suit.tile,
+    awful.layout.suit.fair,
     awful.layout.suit.floating,
     awful.layout.suit.tile.left,
     awful.layout.suit.tile.bottom,
@@ -130,6 +132,10 @@ awful.spawn.with_shell(
 -- NetworkManager, etc.) get a password prompt instead of silently failing.
 -- (Harmless if the "xfce+awesome" session's own agent is also running.)
 awful.spawn("polkit-agent")
+
+-- OpenRGB is set to start minimized (to tray) in its own settings, so just
+-- launching it here is enough to keep it out of the way.
+awful.spawn("openrgb")
 
 -- Screens should never blank/DPMS off just from being idle -- only the
 -- lock-screen script (home.nix) re-enables DPMS, for exactly as long as
@@ -585,7 +591,7 @@ awful.rules.rules = {
 
     -- Steam (class "steam") advertises a hard minimum window size (its main
     -- window claims it won't go below 1010x600 -- see WM_NORMAL_HINTS).
-    -- Unlike i3/sway/dwm, which force tiled clients into the grid geometry
+    -- Unlike i3/sway, which force tiled clients into the grid geometry
     -- regardless of requested hints, Awesome honors size hints by default
     -- (size_hints_honor), so its tiling layouts won't shrink Steam past
     -- that minimum. When it shares a screen with another tiled client
@@ -611,6 +617,19 @@ client.connect_signal("manage", function (c)
       and not c.size_hints.program_position then
         -- Prevent clients from being unreachable after screen count changes.
         awful.placement.no_offscreen(c)
+    end
+end)
+
+-- Zen (Firefox-family) restores its last window sizemode on launch, and
+-- if that was "maximized" it sends an EWMH maximize request on startup
+-- that Awesome honors by default, floating it at full-monitor size --
+-- outside the tile layout, so it renders like a fullscreen window and
+-- new tiled clients stack oddly around it. Reject that specifically for
+-- Zen; every other app's maximize (including the user manually maximizing
+-- Zen mid-session) is unaffected.
+client.connect_signal("property::maximized", function(c)
+    if c.maximized and c.class and c.class:match("^[Zz]en") then
+        c.maximized = false
     end
 end)
 

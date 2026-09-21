@@ -1,0 +1,32 @@
+# Generates ~/.config/hypr/colors.css and ~/.config/kitty/colors.conf from
+# the current wallpaper, on every Hyprland session start and every
+# wallpaper-picker run (see ../hyprland.lua's autostart and
+# ../../home.nix's apply-colors/wallpaper-picker scripts). waybar/style.css
+# and wofi/style.css `@import` the generated colors.css rather than being
+# templated directly themselves, and kitty's colors.conf is `include`d
+# from kitty.conf the same way -- matugen can't write to files
+# home-manager deploys as read-only store symlinks, and keeping
+# structural config static/versioned while only the color variables are
+# dynamic is the standard pattern for this anyway. Hyprland's active
+# border color is handled separately (apply-colors calls `hyprctl keyword`
+# directly), since hyprland.lua itself isn't regenerated at runtime.
+#
+# hyprpaper (not matugen) is what actually sets the wallpaper -- no
+# [config.wallpaper] section here, since matugen's wallpaper-setting
+# would just be a second, redundant mechanism fighting the first.
+
+[config]
+contrast = 0.0
+# Required for a non-interactive run (hyprland.lua's autostart has no TTY
+# to prompt in) -- without this, matugen errors out every single time
+# cosmic.jpg has more than one plausible source color, which it does.
+prefer = "closest-to-fallback"
+fallback_color = "#7aa2f7" # colorBlue, matching the rest of the site
+
+[templates.hypr_colors]
+input_path = "~/.config/matugen/templates/colors.css"
+output_path = "~/.config/hypr/colors.css"
+
+[templates.kitty_colors]
+input_path = "~/.config/matugen/templates/kitty-colors.conf"
+output_path = "~/.config/kitty/colors.conf"
