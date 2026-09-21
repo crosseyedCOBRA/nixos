@@ -50,7 +50,9 @@ window#waybar {
 #cpu,
 #memory,
 #temperature,
-#pulseaudio {
+#pulseaudio,
+#custom-screenshot,
+#custom-clipboard {
   background: alpha(@surface, 0.75);
   margin: 2px 6px;
   padding: 3px 12px;
@@ -64,7 +66,9 @@ window#waybar {
 #cpu:hover,
 #memory:hover,
 #temperature:hover,
-#pulseaudio:hover {
+#pulseaudio:hover,
+#custom-screenshot:hover,
+#custom-clipboard:hover {
   background: alpha(@surface_alt, 0.85);
 }
 
@@ -155,6 +159,27 @@ window#waybar {
 
 #pulseaudio.muted {
   color: @muted;
+}
+
+/* =========================
+   Screenshot / Clipboard
+   ========================= */
+
+#custom-screenshot,
+#custom-clipboard {
+  font-size: 16px;
+}
+
+#custom-screenshot {
+  color: @accent;
+  /* Nudged 1px left within the pill -- same total 24px (12+12) horizontal
+     padding as every other module, just shifted. */
+  padding-left: 10.5px;
+  padding-right: 13.5px;
+}
+
+#custom-clipboard {
+  color: @accent2;
 }
 
 /* =========================

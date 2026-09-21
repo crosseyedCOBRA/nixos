@@ -18,6 +18,31 @@ let
     pink = "#f7768e";
   };
 
+  # wofi-power's per-entry icons (see home.packages below). Papirus is an
+  # app-icon theme -- it has no system-lock-screen/log-out/reboot/
+  # shutdown/suspend icons at all (confirmed: empty search across
+  # Papirus-Dark, and its own Inherits=breeze-dark fallback ships as an
+  # empty stub, zero files). Adwaita's symbolic set has 4 of these
+  # (suspend doesn't exist anywhere as a dedicated icon -- using the
+  # common convention of a moon/night icon instead), but they're baked
+  # solid-fill SVGs (#2e3436 or #222222, confirmed by reading the raw
+  # files) meant to be recolored via GTK's symbolic-icon-aware loader --
+  # wofi's dmenu img: syntax just rasterizes a file directly
+  # (gdk_pixbuf_new_from_file, confirmed via wofi.c source), no
+  # recoloring, so as shipped they'd render near-black and be invisible
+  # against a dark pill. Recolored once here to solid white instead.
+  powerIcons = pkgs.runCommand "wofi-power-icons" { } ''
+    mkdir -p $out
+    recolor() {
+      ${pkgs.gnused}/bin/sed -E 's/fill="#[0-9a-fA-F]{6}"/fill="#ffffff"/' "$1" > "$2"
+    }
+    recolor ${pkgs.adwaita-icon-theme}/share/icons/Adwaita/symbolic/status/system-lock-screen-symbolic.svg $out/lock.svg
+    recolor ${pkgs.adwaita-icon-theme}/share/icons/Adwaita/symbolic/actions/system-log-out-symbolic.svg $out/logout.svg
+    recolor ${pkgs.adwaita-icon-theme}/share/icons/Adwaita/symbolic/status/weather-clear-night-symbolic.svg $out/suspend.svg
+    recolor ${pkgs.adwaita-icon-theme}/share/icons/Adwaita/symbolic/actions/system-reboot-symbolic.svg $out/reboot.svg
+    recolor ${pkgs.adwaita-icon-theme}/share/icons/Adwaita/symbolic/actions/system-shutdown-symbolic.svg $out/shutdown.svg
+  '';
+
 in
 {
   home.username = username;
@@ -85,14 +110,27 @@ in
     hyprlock
     matugen # wallpaper -> ~/.config/hypr/colors.css, see ./hyprland/matugen/
     swaynotificationcenter # notification daemon, no Wayland/layer-shell support in dunst (Awesome's daemon)
+    grim # screenshot capture, see screenshot-region below
+    slurp # region selector for screenshot-region
+    wl-clipboard # wl-copy/wl-paste, used by screenshot-region and cliphist
+    cliphist # clipboard history, see clipboard-picker below
 
     # wofi equivalent of power-menu above, bound to $mainMod+M in
     # hyprland.lua. Lock uses hyprlock directly, not the lock-screen
     # script above (that one's xset/i3lock calls are X11-only).
     (writeShellScriptBin "wofi-power" ''
-      choice=$(printf 'Lock\nLogout\nSuspend\nReboot\nShutdown' | \
-        ${wofi}/bin/wofi -dmenu -p "Power")
-      case "$choice" in
+      entries=$(${coreutils}/bin/printf '%s\n' \
+        "img:${powerIcons}/lock.svg:text:Lock" \
+        "img:${powerIcons}/logout.svg:text:Logout" \
+        "img:${powerIcons}/suspend.svg:text:Suspend" \
+        "img:${powerIcons}/reboot.svg:text:Reboot" \
+        "img:${powerIcons}/shutdown.svg:text:Shutdown")
+
+      choice=$(printf '%s' "$entries" | ${wofi}/bin/wofi -dmenu --allow-images -p "Power")
+      [ -n "$choice" ] || exit 0
+
+      label=$(printf '%s' "$choice" | ${gnused}/bin/sed -n 's/^img:.*:text:\(.*\)$/\1/p')
+      case "$label" in
         Lock) ${hyprlock}/bin/hyprlock ;;
         Logout) ${hyprland}/bin/hyprctl dispatch exit ;;
         Suspend) ${systemd}/bin/systemctl suspend ;;
@@ -132,7 +170,7 @@ in
       if [ -n "$accent" ]; then
         ${coreutils}/bin/printf '%s\n' \
           "@define-color pill_border_accent $accent;" \
-          "#workspaces, #tray, #clock, #cpu, #memory, #temperature, #pulseaudio {" \
+          "#workspaces, #tray, #clock, #cpu, #memory, #temperature, #pulseaudio, #custom-screenshot, #custom-clipboard {" \
           "  border: 2px solid alpha(@pill_border_accent, 0.6);" \
           "}" > "$pill_border_css"
       else
@@ -299,6 +337,34 @@ in
 
       apply-colors "$path"
     '')
+
+    # Region-select screenshot, bound to $mainMod+S in hyprland.lua and
+    # the custom/screenshot waybar module (./hyprland/waybar/shared.jsonc).
+    # slurp with no output means the user pressed Escape to cancel --
+    # exit quietly rather than taking a screenshot of nothing selected.
+    (writeShellScriptBin "screenshot-region" ''
+      dir="$HOME/Pictures/Screenshots"
+      ${coreutils}/bin/mkdir -p "$dir"
+
+      geometry=$(${slurp}/bin/slurp)
+      [ -n "$geometry" ] || exit 0
+
+      file="$dir/screenshot-$(${coreutils}/bin/date +%Y%m%d-%H%M%S).png"
+      ${grim}/bin/grim -g "$geometry" "$file"
+      ${wl-clipboard}/bin/wl-copy < "$file"
+      ${libnotify}/bin/notify-send -i "$file" "Screenshot saved" "$file"
+    '')
+
+    # Clipboard history picker, bound to $mainMod+V in hyprland.lua and
+    # the custom/clipboard waybar module (main monitor only, see
+    # ./hyprland/waybar/config.jsonc) -- reads from cliphist's own
+    # history (populated by the `wl-paste --watch cliphist store`
+    # autostart process in hyprland.lua), not the live clipboard.
+    (writeShellScriptBin "clipboard-picker" ''
+      choice=$(${cliphist}/bin/cliphist list | ${wofi}/bin/wofi -dmenu -p "Clipboard")
+      [ -n "$choice" ] || exit 0
+      printf '%s' "$choice" | ${cliphist}/bin/cliphist decode | ${wl-clipboard}/bin/wl-copy
+    '')
   ];
 
   home.sessionVariables = {
@@ -324,8 +390,8 @@ in
       package = pkgs.gnome-themes-extra;
     };
     iconTheme = {
-      name = "Adwaita";
-      package = pkgs.adwaita-icon-theme;
+      name = "Papirus-Dark";
+      package = pkgs.papirus-icon-theme;
     };
     colorScheme = "dark";
   };

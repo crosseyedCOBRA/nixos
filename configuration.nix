@@ -143,6 +143,11 @@
   # profile to hardware without it running.
   services.power-profiles-daemon.enable = true;
 
+  # swayosd's own udev rule (lib/udev/rules.d/99-swayosd.rules), granting
+  # its server process backlight sysfs write access -- see the swayosd
+  # comment in environment.systemPackages above for the polkit half.
+  services.udev.packages = [ pkgs.swayosd ];
+
   # power-profiles-daemon has no persistence across restarts at all --
   # confirmed via its own source (power-profiles-daemon.c: unconditionally
   # hardcodes `active_profile = PPD_PROFILE_BALANCED` at every startup) --
@@ -252,6 +257,16 @@
     gnome-calculator
     vscodium
     inputs.zen-browser.packages.${pkgs.system}.default # beta channel
+
+    # swayosd: volume/brightness OSD (see hyprland.lua's XF86Audio*/
+    # XF86MonBrightness* binds). Installed system-wide (not just via
+    # home.packages) so its polkit action file
+    # (share/polkit-1/actions/org.erikreider.swayosd.policy) gets picked
+    # up -- polkit aggregates actions from the system profile, not the
+    # per-user home-manager one. services.udev.packages below is the
+    # other half: the udev rule granting the swayosd-server process
+    # write access to backlight sysfs without running as root.
+    swayosd
 
     # --- Gaming ---
     mangohud

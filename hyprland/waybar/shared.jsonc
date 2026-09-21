@@ -57,6 +57,16 @@
     "disable-scroll": true,
     "show-special": true
   },
+  "custom/screenshot": {
+    "format": "󰹑",
+    "tooltip-format": "Screenshot (region select)",
+    "on-click": "screenshot-region"
+  },
+  "custom/clipboard": {
+    "format": "",
+    "tooltip-format": "Clipboard history",
+    "on-click": "clipboard-picker"
+  },
   "pulseaudio": {
         // "scroll-step": 1, // %, can be a float
         "format": "{icon} {volume}% {format_source}",

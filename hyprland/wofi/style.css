@@ -15,14 +15,14 @@ window {
   background-color: @bg;
   border: 2px solid @accent;
   border-radius: 10px;
-  padding: 12px;
+  padding: 8px;
 }
 
 #input {
   background-color: @surface;
   color: @text;
-  padding: 10px 14px;
-  margin-bottom: 10px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
   border: 1px solid @outline;
   border-radius: 8px;
 }
@@ -40,15 +40,21 @@ window {
 }
 
 #scroll {
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 #entry {
-  padding: 10px 14px;
-  margin: 3px 0;
+  padding: 8px 12px;
+  margin: 2px 0;
   background-color: transparent;
   color: @muted;
   border-radius: 6px;
+}
+
+/* Icon-to-text spacing (img: entries only -- wofi names the image
+   widget "img", confirmed via its own source). */
+#img {
+  margin-right: 10px;
 }
 
 #entry:selected {

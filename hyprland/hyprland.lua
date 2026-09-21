@@ -91,6 +91,8 @@ hl.on("hyprland.start", function ()
   hl.exec_cmd("random-wallpaper && hyprpaper -c ~/.cache/hypr/hyprpaper-runtime.conf")
   hl.exec_cmd("swaync")
   hl.exec_cmd("polkit-agent")
+  hl.exec_cmd("swayosd-server") -- volume/brightness OSD backend for the swayosd-client calls below
+  hl.exec_cmd("wl-paste --watch cliphist store") -- feeds clipboard-picker's history (../home.nix)
   hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
   hl.exec_cmd("systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
 end)
@@ -241,6 +243,8 @@ hl.workspace_rule({ workspace = "2", monitor = "DP-2", default = true, persisten
 hl.workspace_rule({ workspace = "3", monitor = "DP-3", default = true, persistent = true })
 hl.workspace_rule({ workspace = "4", monitor = "DP-1", persistent = true })
 hl.workspace_rule({ workspace = "5", monitor = "DP-1", persistent = true })
+hl.workspace_rule({ workspace = "6", monitor = "DP-1", persistent = true })
+hl.workspace_rule({ workspace = "7", monitor = "DP-1", persistent = true })
 
 -- Pin specific apps to specific workspaces on open. `class` matches the
 -- window's WM_CLASS -- confirmed live via `hyprctl clients` on the actual
@@ -256,7 +260,7 @@ hl.workspace_rule({ workspace = "5", monitor = "DP-1", persistent = true })
 -- yanking focus away from whatever you're currently doing.
 hl.window_rule({ match = { class = "steam" }, workspace = "1 silent" })
 hl.window_rule({ match = { class = "vesktop" }, workspace = "2 silent" })
-hl.window_rule({ match = { class = "chrome-music.youtube.com__-Default" }, workspace = "5 silent" })
+hl.window_rule({ match = { class = "chrome-music.youtube.com__-Default" }, workspace = "7 silent" })
 
 -- WebAppHub-generated webapps (YouTube Music, and any future ones) open
 -- floating by default -- confirmed live via `hyprctl clients` on the
@@ -353,6 +357,8 @@ hl.bind(mainMod .. " + M", hl.dsp.exec_cmd("wofi-power"))
 hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("hyprlock"))
 hl.bind(mainMod .. " + W", hl.dsp.exec_cmd("wallpaper-picker"))
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("swaync-client -t"))
+hl.bind("Print", hl.dsp.exec_cmd("screenshot-region"))
+hl.bind(mainMod .. " + C", hl.dsp.exec_cmd("clipboard-picker"))
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(menu))
@@ -365,10 +371,10 @@ hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))
 hl.bind(mainMod .. " + up",    hl.dsp.focus({ direction = "up" }))
 hl.bind(mainMod .. " + down",  hl.dsp.focus({ direction = "down" }))
 
--- Switch workspaces with mainMod + [1-5] (5 total, see the
+-- Switch workspaces with mainMod + [1-7] (7 total, see the
 -- hl.workspace_rule monitor pins above)
--- Move active window to a workspace with mainMod + SHIFT + [1-5]
-for i = 1, 5 do
+-- Move active window to a workspace with mainMod + SHIFT + [1-7]
+for i = 1, 7 do
     hl.bind(mainMod .. " + " .. i,             hl.dsp.focus({ workspace = i}))
     hl.bind(mainMod .. " + SHIFT + " .. i,     hl.dsp.window.move({ workspace = i }))
 end
@@ -385,13 +391,18 @@ hl.bind(mainMod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))
 hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })
 hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 
--- Laptop multimedia keys for volume and LCD brightness
-hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })
-hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),      { locked = true, repeating = true })
-hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),     { locked = true, repeating = true })
-hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),   { locked = true, repeating = true })
-hl.bind("XF86MonBrightnessUp",  hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%+"),                  { locked = true, repeating = true })
-hl.bind("XF86MonBrightnessDown",hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%-"),                  { locked = true, repeating = true })
+-- Laptop multimedia keys for volume and LCD brightness -- swayosd-client
+-- both performs the change AND shows the OSD popup in one call (the
+-- swayosd-server autostart above is what actually renders it), replacing
+-- the old bare wpctl/brightnessctl calls, which had no visual feedback
+-- at all. --max-volume caps output raise at 100%, matching wpctl's old
+-- `-l 1` limit.
+hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("swayosd-client --output-volume +5 --max-volume 100"), { locked = true, repeating = true })
+hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("swayosd-client --output-volume -5"),                  { locked = true, repeating = true })
+hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("swayosd-client --output-volume mute-toggle"),         { locked = true, repeating = true })
+hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("swayosd-client --input-volume mute-toggle"),          { locked = true, repeating = true })
+hl.bind("XF86MonBrightnessUp",  hl.dsp.exec_cmd("swayosd-client --brightness +5"),                     { locked = true, repeating = true })
+hl.bind("XF86MonBrightnessDown",hl.dsp.exec_cmd("swayosd-client --brightness -5"),                     { locked = true, repeating = true })
 
 -- Requires playerctl
 hl.bind("XF86AudioNext",  hl.dsp.exec_cmd("playerctl next"),       { locked = true })

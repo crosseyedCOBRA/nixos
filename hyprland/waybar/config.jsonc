@@ -9,7 +9,9 @@
     "include": ["shared.jsonc"],
 
     "modules-left": [
-      "hyprland/workspaces"
+      "hyprland/workspaces",
+      "custom/screenshot",
+      "custom/clipboard"
     ],
     "modules-center": [
       "clock"
@@ -27,7 +29,8 @@
     "include": ["shared.jsonc"],
 
     "modules-left": [
-      "hyprland/workspaces"
+      "hyprland/workspaces",
+      "custom/screenshot"
     ],
     "modules-center": [
       "clock"
