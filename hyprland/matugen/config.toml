@@ -1,15 +1,19 @@
-# Generates ~/.config/hypr/colors.css and ~/.config/kitty/colors.conf from
-# the current wallpaper, on every Hyprland session start and every
-# wallpaper-picker run (see ../hyprland.lua's autostart and
-# ../../home.nix's apply-colors/wallpaper-picker scripts). waybar/style.css
+# Generates ~/.config/hypr/colors.css, ~/.config/kitty/colors.conf, and
+# ~/.config/fastfetch/config.jsonc from the current wallpaper, on every
+# Hyprland session start and every wallpaper-picker/random-wallpaper run
+# (see ../hyprland.lua's autostart and ../../home.nix's
+# apply-colors/wallpaper-picker/random-wallpaper scripts). waybar/style.css
 # and wofi/style.css `@import` the generated colors.css rather than being
 # templated directly themselves, and kitty's colors.conf is `include`d
 # from kitty.conf the same way -- matugen can't write to files
 # home-manager deploys as read-only store symlinks, and keeping
 # structural config static/versioned while only the color variables are
-# dynamic is the standard pattern for this anyway. Hyprland's active
-# border color is handled separately (apply-colors calls `hyprctl keyword`
-# directly), since hyprland.lua itself isn't regenerated at runtime.
+# dynamic is the standard pattern for this anyway. fastfetch's
+# config.jsonc has no such split -- its whole file is the template output,
+# since home-manager no longer deploys a static one at all. Hyprland's
+# active border color is handled separately (apply-colors calls `hyprctl
+# eval`, not a template), since hyprland.lua itself isn't regenerated at
+# runtime.
 #
 # hyprpaper (not matugen) is what actually sets the wallpaper -- no
 # [config.wallpaper] section here, since matugen's wallpaper-setting
@@ -30,3 +34,7 @@ output_path = "~/.config/hypr/colors.css"
 [templates.kitty_colors]
 input_path = "~/.config/matugen/templates/kitty-colors.conf"
 output_path = "~/.config/kitty/colors.conf"
+
+[templates.fastfetch_config]
+input_path = "~/.config/matugen/templates/fastfetch-config.jsonc"
+output_path = "~/.config/fastfetch/config.jsonc"

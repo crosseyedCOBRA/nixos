@@ -75,9 +75,9 @@
   # --- Hyprland ---
   # Registers its session via services.displayManager.sessionPackages; no
   # display-manager coupling by itself, but see services.greetd below for
-  # why lightdm can't be the display manager anymore now that this exists.
+  # why lightdm cant be the display manager anymore now that this exists.
   # xwayland.enable defaults to true, needed for Steam/Heroic under it.
-  # Config lives in ./hyprland/ (see home.nix for how it's deployed).
+  # Config lives in ./hyprland/ (see home.nix for how its deployed).
   programs.hyprland.enable = true;
 
   # lightdm cannot launch Hyprland (or any Wayland session) at all -- it
@@ -100,12 +100,6 @@
         "${pkgs.tuigreet}/bin/tuigreet"
         "--time"
         "--remember --remember-session" # sticky across reboots/logouts
-        "--background matrix"
-        # Blue-toned instead of the default green, matching the rest of
-        # this site's palette (colorText/colorBlue/colorBorder). No
-        # quoting needed/wanted: greetd's `command` is whitespace-split,
-        # not shell-parsed, and this value has no spaces in it anyway.
-        "--matrix-colors #c0caf5,#7aa2f7,#292e42"
         "--xsessions ${sessions}/share/xsessions"
         "--sessions ${sessions}/share/wayland-sessions"
         # Hyprland as the initial default: --cmd sets what runs before any
@@ -125,7 +119,7 @@
   # autostart (waybar/hyprpaper/wofi-power/hyprlock) execs *those* by bare
   # name as children of that same process tree -- they're home-manager
   # packages, not environment.systemPackages, so config.system.path alone
-  # doesn't cover them; the per-user home-manager profile does.
+  # doesnt cover them; the per-user home-manager profile does.
   systemd.services.greetd.path = [
     config.system.path
     config.home-manager.users.${username}.home.profileDirectory
@@ -133,9 +127,9 @@
     pkgs.util-linux # hexdump
     pkgs.kbd # deallocvt, startx's cleanup step -- degrades gracefully if missing, included anyway
   ];
-  # services.displayManager.defaultSession isn't consulted by greetd/tuigreet
+  # services.displayManager.defaultSession isnt consulted by greetd/tuigreet
   # (only LightDM/GDM/SDDM read it) -- kept in sync with the --cmd default
-  # above purely so this file doesn't contradict itself, plus it still
+  # above purely so this file doesnt contradict itself, plus it still
   # feeds the sessionNames assertion. The actual default comes from
   # tuigreet's --cmd/--remember-session, not this option.
   services.displayManager.defaultSession = "hyprland";
@@ -144,8 +138,26 @@
   # by default and fires spuriously during fast in-game clicking -- off.
   services.libinput.mouse.middleEmulation = false;
 
-  # Backs waybar's power-profiles-daemon module (./hyprland/waybar/config.jsonc).
+  # Still needed even with the waybar module removed (below) -- it's the
+  # actual D-Bus service `powerprofilesctl` talks to; nothing applies the
+  # profile to hardware without it running.
   services.power-profiles-daemon.enable = true;
+
+  # power-profiles-daemon has no persistence across restarts at all --
+  # confirmed via its own source (power-profiles-daemon.c: unconditionally
+  # hardcodes `active_profile = PPD_PROFILE_BALANCED` at every startup) --
+  # so "performance" has to be re-applied after every boot, not just set
+  # once by hand.
+  systemd.services.set-performance-profile = {
+    description = "Force power profile to performance on boot";
+    after = [ "power-profiles-daemon.service" ];
+    requires = [ "power-profiles-daemon.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.power-profiles-daemon}/bin/powerprofilesctl set performance";
+    };
+  };
 
   # Required for i3lock to actually authenticate: this generates
   # /etc/pam.d/i3lock. Without it, i3lock has no PAM stack to check the

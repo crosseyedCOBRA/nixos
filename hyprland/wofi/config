@@ -1,0 +1,3 @@
+# Applies to every wofi invocation (drun launcher, wofi-power,
+# wallpaper-picker -- none of them pass --conf to point elsewhere).
+insensitive=true

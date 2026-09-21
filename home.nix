@@ -35,6 +35,7 @@ in
     xclip
     feh
     thunar
+    tumbler # Thunar delegates all thumbnailing (image previews, etc.) to this D-Bus service -- no previews without it
 
     (writeShellScriptBin "toggle-hdmi" ''
       # Toggles HDMI-A-0 (which normally mirrors DisplayPort-0) on/off.
@@ -103,10 +104,14 @@ in
     # Regenerates colors from ~/.config/hypr/colors.css (already written
     # by matugen -- see ./hyprland/matugen/) into every app that needs a
     # live push rather than just re-reading a file on its own next
-    # launch. Shared between hyprland.lua's autostart (after the
-    # session's default-wallpaper matugen run) and wallpaper-picker
-    # below (after each new pick), so both paths apply colors identically.
+    # launch, plus repoints hyprlock's background at whichever wallpaper
+    # is now current ($1). Shared between hyprland.lua's autostart (after
+    # the session's default-wallpaper matugen run, passing that default
+    # wallpaper's path) and wallpaper-picker below (after each new pick,
+    # passing the newly picked path), so both paths apply everything
+    # identically.
     (writeShellScriptBin "apply-colors" ''
+      wallpaper_path="$1"
       colors_css="$HOME/.config/hypr/colors.css"
       [ -f "$colors_css" ] || exit 0
 
@@ -117,13 +122,58 @@ in
       accent=$(get_color accent)
       accent2=$(get_color accent2)
 
-      # Hyprland's active border: `hyprctl keyword` applies a config
-      # value immediately, no restart/reload needed -- the value syntax
-      # is the same gradient format hyprland.lua's general.col.active_border
-      # uses, just as a flat string instead of a Lua table.
+      # Pill borders: always on, across every waybar module (see
+      # ./waybar/style.css's @import of this same file), colored from the
+      # current wallpaper's accent so it always matches the theme.
+      # @define-color here (not a raw hex passed to alpha()) matches the
+      # @name + alpha(@name, N) pattern already used everywhere else in
+      # this file/colors.css.
+      pill_border_css="$HOME/.config/hypr/pill-border.css"
+      if [ -n "$accent" ]; then
+        ${coreutils}/bin/printf '%s\n' \
+          "@define-color pill_border_accent $accent;" \
+          "#workspaces, #tray, #clock, #cpu, #memory, #temperature, #pulseaudio {" \
+          "  border: 2px solid alpha(@pill_border_accent, 0.6);" \
+          "}" > "$pill_border_css"
+      else
+        : > "$pill_border_css"
+      fi
+
+      # hyprlock's wallpaper: a full `background { }` block (path + a
+      # light blur), sourced by the static hyprlock.conf's `source =`
+      # line -- kept in ~/.cache (not overwriting hyprlock.conf itself,
+      # which is a read-only home-manager store symlink).
+      if [ -n "$wallpaper_path" ]; then
+        hyprlock_conf="$HOME/.cache/hypr/hyprlock-wallpaper.conf"
+        ${coreutils}/bin/mkdir -p "$(${coreutils}/bin/dirname "$hyprlock_conf")"
+        ${coreutils}/bin/printf '%s\n' \
+          "background {" \
+          "    monitor =" \
+          "    path = $wallpaper_path" \
+          "    color = rgba(25, 20, 20, 1.0)" \
+          "    blur_passes = 2" \
+          "    blur_size = 4" \
+          "    noise = 0.0117" \
+          "    contrast = 0.8916" \
+          "    brightness = 0.8172" \
+          "    vibrancy = 0.1696" \
+          "    vibrancy_darkness = 0.0" \
+          "}" > "$hyprlock_conf"
+      fi
+
+      # Hyprland's active border, applied immediately, no restart needed.
+      # `hyprctl keyword` (the flat-string classic syntax) flatly refuses
+      # to run on a Lua-config setup ("keyword can't work with non-legacy
+      # parsers. Use eval." -- confirmed live), and `eval` itself rejects
+      # the flat "rgba(...) rgba(...) 45deg" string too -- it needs the
+      # same Lua table shape hyprland.lua's own general.col.active_border
+      # uses (colors array + angle), not a plain string. Confirmed live
+      # via `hyprctl getoption general:col.active_border` actually
+      # reflecting the new gradient after this exact call.
       if [ -n "$accent" ] && [ -n "$accent2" ]; then
-        ${hyprland}/bin/hyprctl keyword general:col.active_border \
-          "rgba(''${accent#\#}ee) rgba(''${accent2#\#}ee) 45deg" >/dev/null 2>&1
+        ${hyprland}/bin/hyprctl eval \
+          "hl.config({ general = { col = { active_border = { colors = {\"rgba(''${accent#\#}ee)\", \"rgba(''${accent2#\#}ee)\"}, angle = 45 } } } })" \
+          >/dev/null 2>&1
       fi
 
       # waybar's nix package wraps the real binary (bin/waybar execs into
@@ -196,6 +246,7 @@ in
 
       ${coreutils}/bin/mkdir -p "$(${coreutils}/bin/dirname "$runtime_conf")"
       ${coreutils}/bin/printf '%s\n' \
+        "splash = false" \
         "wallpaper {" \
         "    monitor =" \
         "    path = $path" \
@@ -209,7 +260,44 @@ in
 
       ${matugen}/bin/matugen image "$path" --mode dark
 
-      apply-colors
+      apply-colors "$path"
+    '')
+
+    # Picks a random wallpaper on every session start (hyprland.lua's
+    # autostart: "random-wallpaper && hyprpaper -c <the same runtime_conf
+    # this writes>"). Shares that runtime_conf path with wallpaper-picker
+    # above so a session-start random pick and a later manual pick both
+    # go through the exact same hyprpaper/matugen/apply-colors path --
+    # hyprland/hyprpaper.conf (the static, home-manager-deployed default)
+    # is no longer what actually loads at session start, kept only as a
+    # manual fallback/reference.
+    (writeShellScriptBin "random-wallpaper" ''
+      wallpaper_dir="$HOME/Pictures/wallpapers"
+      runtime_conf="$HOME/.cache/hypr/hyprpaper-runtime.conf"
+
+      [ -d "$wallpaper_dir" ] || exit 0
+
+      candidates=()
+      for f in "$wallpaper_dir"/*.jpg "$wallpaper_dir"/*.jpeg "$wallpaper_dir"/*.png "$wallpaper_dir"/*.webp; do
+        [ -f "$f" ] || continue
+        candidates+=("$f")
+      done
+      [ "''${#candidates[@]}" -gt 0 ] || exit 0
+
+      path="''${candidates[RANDOM % ''${#candidates[@]}]}"
+
+      ${coreutils}/bin/mkdir -p "$(${coreutils}/bin/dirname "$runtime_conf")"
+      ${coreutils}/bin/printf '%s\n' \
+        "splash = false" \
+        "wallpaper {" \
+        "    monitor =" \
+        "    path = $path" \
+        "    fit_mode = cover" \
+        "}" > "$runtime_conf"
+
+      ${matugen}/bin/matugen image "$path" --mode dark
+
+      apply-colors "$path"
     '')
   ];
 
@@ -474,7 +562,10 @@ in
     source = ./awesome/view-tag.sh;
     executable = true;
   };
-  xdg.configFile."fastfetch/config.jsonc".source = ./fastfetch/config.jsonc;
+  # fastfetch/config.jsonc is deliberately NOT deployed here anymore --
+  # matugen's fastfetch_config template (./hyprland/matugen/) now owns
+  # that file entirely, regenerated on every login/wallpaper change, same
+  # as colors.css/kitty's colors.conf.
 
   # --- Hyprland session ---
   # Hyprland 0.55+ defaults to Lua config (hyprlang/.conf is deprecated).
@@ -482,8 +573,10 @@ in
   xdg.configFile."hypr/hyprpaper.conf".source = ./hyprland/hyprpaper.conf;
   xdg.configFile."hypr/hyprlock.conf".source = ./hyprland/hyprlock.conf;
   xdg.configFile."waybar/config.jsonc".source = ./hyprland/waybar/config.jsonc;
+  xdg.configFile."waybar/shared.jsonc".source = ./hyprland/waybar/shared.jsonc;
   xdg.configFile."waybar/style.css".source = ./hyprland/waybar/style.css;
   xdg.configFile."wofi/style.css".source = ./hyprland/wofi/style.css;
+  xdg.configFile."wofi/config".source = ./hyprland/wofi/config;
   # config.toml + the template are versioned; the *generated* colors.css
   # they produce (~/.config/hypr/colors.css) deliberately isn't deployed
   # here -- matugen needs to write there at runtime (hyprland.lua's
@@ -492,6 +585,7 @@ in
   xdg.configFile."matugen/config.toml".source = ./hyprland/matugen/config.toml;
   xdg.configFile."matugen/templates/colors.css".source = ./hyprland/matugen/templates/colors.css;
   xdg.configFile."matugen/templates/kitty-colors.conf".source = ./hyprland/matugen/templates/kitty-colors.conf;
+  xdg.configFile."matugen/templates/fastfetch-config.jsonc".source = ./hyprland/matugen/templates/fastfetch-config.jsonc;
   xdg.configFile."kitty/kitty.conf".source = ./hyprland/kitty/kitty.conf;
   xdg.configFile."swaync/config.json".source = ./hyprland/swaync/config.json;
   xdg.configFile."swaync/style.css".source = ./hyprland/swaync/style.css;

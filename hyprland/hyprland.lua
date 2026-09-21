@@ -77,18 +77,18 @@ local menu        = "wofi --show drun"
 -- NixOS's xdg.portal service activation, not needed here. polkit-agent
 -- matches the Awesome session's own autostart (see ../awesome/rc.lua).
 --
--- matugen regenerates ~/.config/hypr/colors.css and
--- ~/.config/kitty/colors.conf from the current wallpaper (see
--- ./matugen/) -- chained with `&&` into the SAME exec_cmd call as
--- apply-colors (../home.nix), rather than a separate call, so nothing
--- reads a stale/missing colors.css regardless of whether hl.exec_cmd
--- itself blocks or fires calls off in parallel. apply-colors is also
--- what wallpaper-picker calls after every later wallpaper change, so
--- session-start and live-picked wallpapers apply colors identically
--- (waybar launch, kitty reload, Hyprland active-border color).
+-- random-wallpaper (../home.nix) picks a random image from
+-- ~/Pictures/wallpapers/ every session start, writes hyprpaper's runtime
+-- config for it, and runs matugen + apply-colors against that same pick
+-- -- chained with `&&` into hyprpaper's own launch (pointed at that exact
+-- runtime config, not the static ./hyprpaper.conf) so hyprpaper always
+-- shows the same wallpaper colors were just derived from, no flash of a
+-- different default in between. apply-colors is also what wallpaper-picker
+-- calls after every later manual change, so session-start and live-picked
+-- wallpapers apply colors identically (waybar launch, kitty reload,
+-- Hyprland active-border color, hyprlock background).
 hl.on("hyprland.start", function ()
-  hl.exec_cmd("matugen image ~/Pictures/wallpapers/cosmic.jpg --mode dark && apply-colors")
-  hl.exec_cmd("hyprpaper")
+  hl.exec_cmd("random-wallpaper && hyprpaper -c ~/.cache/hypr/hyprpaper-runtime.conf")
   hl.exec_cmd("swaync")
   hl.exec_cmd("polkit-agent")
   hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
@@ -232,12 +232,39 @@ hl.animation({ leaf = "zoomFactor",    enabled = true,  speed = 7,    bezier = "
 -- DP-2 is the 144Hz monitor rotated right of it (== DisplayPort-1), DP-3
 -- is the 144Hz monitor right of that (== DisplayPort-2). `default = true`
 -- is which workspace that monitor shows on session start/monitor
--- reconnect -- exactly one per monitor.
-hl.workspace_rule({ workspace = "1", monitor = "DP-1", default = true })
-hl.workspace_rule({ workspace = "2", monitor = "DP-2", default = true })
-hl.workspace_rule({ workspace = "3", monitor = "DP-3", default = true })
-hl.workspace_rule({ workspace = "4", monitor = "DP-1" })
-hl.workspace_rule({ workspace = "5", monitor = "DP-1" })
+-- reconnect -- exactly one per monitor. `persistent = true` is what lets
+-- waybar's hyprland/workspaces module show all 5 of these (even empty,
+-- unfocused ones) using these exact real IDs/monitor pins -- see
+-- ./waybar/config.jsonc's comment on all-outputs/persistent-workspaces.
+hl.workspace_rule({ workspace = "1", monitor = "DP-1", default = true, persistent = true })
+hl.workspace_rule({ workspace = "2", monitor = "DP-2", default = true, persistent = true })
+hl.workspace_rule({ workspace = "3", monitor = "DP-3", default = true, persistent = true })
+hl.workspace_rule({ workspace = "4", monitor = "DP-1", persistent = true })
+hl.workspace_rule({ workspace = "5", monitor = "DP-1", persistent = true })
+
+-- Pin specific apps to specific workspaces on open. `class` matches the
+-- window's WM_CLASS -- confirmed live via `hyprctl clients` on the actual
+-- running windows for vesktop and the YouTube Music webapp (vesktop's own
+-- .desktop file claims StartupWMClass=Vesktop, capitalized, but the real
+-- runtime class is lowercase "vesktop" -- caught this exact mismatch by
+-- checking live instead of trusting the .desktop file). Steam's "steam"
+-- is the well-known standard class, not yet confirmed live on this
+-- machine -- double check with `hyprctl clients` once it's actually open.
+-- "silent" (confirmed via Window.cpp: the effect value just needs to
+-- contain that literal word) assigns the window to its workspace without
+-- also jumping your view there -- it opens in the background instead of
+-- yanking focus away from whatever you're currently doing.
+hl.window_rule({ match = { class = "steam" }, workspace = "1 silent" })
+hl.window_rule({ match = { class = "vesktop" }, workspace = "2 silent" })
+hl.window_rule({ match = { class = "chrome-music.youtube.com__-Default" }, workspace = "5 silent" })
+
+-- WebAppHub-generated webapps (YouTube Music, and any future ones) open
+-- floating by default -- confirmed live via `hyprctl clients` on the
+-- actual running YouTube Music window (floating: true straight out of
+-- WebAppHub's Chromium --app= launch). Every WebAppHub webapp's WM_CLASS
+-- is "chrome-<site>__-<profile>", so one regex rule covers all of them,
+-- present and future, rather than needing a rule per webapp.
+hl.window_rule({ match = { class = "^chrome-" }, tile = true })
 
 -- See https://wiki.hypr.land/Configuring/Layouts/Dwindle-Layout/ for more
 hl.config({
