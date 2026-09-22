@@ -78,23 +78,23 @@ local menu        = "wofi --show drun"
 -- matches the Awesome session's own autostart (see ../awesome/rc.lua).
 --
 -- random-wallpaper (../home.nix) picks a random image from
--- ~/Pictures/wallpapers/ every session start, writes hyprpaper's runtime
--- config for it, and runs matugen + apply-colors against that same pick
--- -- chained with `&&` into hyprpaper's own launch (pointed at that exact
--- runtime config, not the static ./hyprpaper.conf) so hyprpaper always
--- shows the same wallpaper colors were just derived from, no flash of a
--- different default in between. apply-colors is also what wallpaper-picker
--- calls after every later manual change, so session-start and live-picked
--- wallpapers apply colors identically (waybar launch, kitty reload,
--- Hyprland active-border color, hyprlock background).
+-- ~/Pictures/wallpapers/, writes hyprpaper's runtime config for it, and
+-- (now self-contained, see home.nix) launches hyprpaper against that
+-- exact config itself and runs matugen + apply-colors -- reused
+-- identically by the random-wallpaper-timer systemd unit (also
+-- home.nix) every 30 minutes, not just this one-time session-start call.
+-- apply-colors is also what wallpaper-picker calls after every manual
+-- pick, so all three paths (session start, 30-min timer, manual pick)
+-- apply colors identically (waybar launch, kitty reload, Hyprland
+-- active-border color, hyprlock background).
 hl.on("hyprland.start", function ()
-  hl.exec_cmd("random-wallpaper && hyprpaper -c ~/.cache/hypr/hyprpaper-runtime.conf")
+  hl.exec_cmd("random-wallpaper")
   hl.exec_cmd("swaync")
   hl.exec_cmd("polkit-agent")
   hl.exec_cmd("swayosd-server") -- volume/brightness OSD backend for the swayosd-client calls below
   hl.exec_cmd("wl-paste --watch cliphist store") -- feeds clipboard-picker's history (../home.nix)
   hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
-  hl.exec_cmd("systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
+  hl.exec_cmd("systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE")
 end)
 
 
@@ -354,7 +354,7 @@ local closeWindowBind = hl.bind(mainMod .. " + Q", hl.dsp.window.close())
 -- same power menu the traditional hyprland.conf used, wofi-based like
 -- the rest of this session.
 hl.bind(mainMod .. " + M", hl.dsp.exec_cmd("wofi-power"))
-hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("hyprlock"))
+hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("hyprlock-timeout"))
 hl.bind(mainMod .. " + W", hl.dsp.exec_cmd("wallpaper-picker"))
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("swaync-client -t"))
 hl.bind("Print", hl.dsp.exec_cmd("screenshot-region"))

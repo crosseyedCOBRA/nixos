@@ -50,6 +50,7 @@ window#waybar {
 #cpu,
 #memory,
 #temperature,
+#network,
 #pulseaudio,
 #custom-screenshot,
 #custom-clipboard {
@@ -66,6 +67,7 @@ window#waybar {
 #cpu:hover,
 #memory:hover,
 #temperature:hover,
+#network:hover,
 #pulseaudio:hover,
 #custom-screenshot:hover,
 #custom-clipboard:hover {
@@ -146,6 +148,18 @@ window#waybar {
 
 #temperature.critical {
   background: alpha(@urgent, 0.25);
+  color: @urgent;
+}
+
+/* =========================
+   Network
+   ========================= */
+
+#network {
+  color: @accent2;
+}
+
+#network.disconnected {
   color: @urgent;
 }
 

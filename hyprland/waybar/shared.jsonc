@@ -87,13 +87,14 @@
         "on-click": "pavucontrol"
     },
   "network": {
-    "format": "{ifname}",
-    "format-ethernet": "{ifname} 󰈀",
-    "format-disconnected": " ",
-    "tooltip-format": " {ifname} via {gwaddr}",
-    "tooltip-format-ethernet": " {ifname} {ipaddr}/{cidr}",
-    "tooltip-format-disconnected": "Disconnected",
-    "max-length": 50
+    "format": "󰈁 Connected",
+    "format-wifi": "󰈁 Connected",
+    "format-ethernet": "󰈁 Connected",
+    "format-disconnected": "󰈂 Disconnected",
+    "tooltip-format": "{ifname} via {gwaddr}",
+    "tooltip-format-wifi": "{ifname} ({signalStrength}%)",
+    "tooltip-format-ethernet": "{ifname} {ipaddr}/{cidr}",
+    "tooltip-format-disconnected": "Disconnected"
   },
   "hyprland/language": {
     "format": "{} ",

@@ -21,6 +21,7 @@
       "cpu",
       "memory",
       "temperature",
+      "network",
       "pulseaudio"
     ]
   },
@@ -37,6 +38,7 @@
     ],
     "modules-right": [
       "tray",
+      "network",
       "pulseaudio"
     ]
   }

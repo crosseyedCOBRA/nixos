@@ -20,17 +20,15 @@ let
 
   # wofi-power's per-entry icons (see home.packages below). Papirus is an
   # app-icon theme -- it has no system-lock-screen/log-out/reboot/
-  # shutdown/suspend icons at all (confirmed: empty search across
-  # Papirus-Dark, and its own Inherits=breeze-dark fallback ships as an
-  # empty stub, zero files). Adwaita's symbolic set has 4 of these
-  # (suspend doesn't exist anywhere as a dedicated icon -- using the
-  # common convention of a moon/night icon instead), but they're baked
-  # solid-fill SVGs (#2e3436 or #222222, confirmed by reading the raw
-  # files) meant to be recolored via GTK's symbolic-icon-aware loader --
-  # wofi's dmenu img: syntax just rasterizes a file directly
-  # (gdk_pixbuf_new_from_file, confirmed via wofi.c source), no
-  # recoloring, so as shipped they'd render near-black and be invisible
-  # against a dark pill. Recolored once here to solid white instead.
+  # shutdown icons at all (confirmed: empty search across Papirus-Dark,
+  # and its own Inherits=breeze-dark fallback ships as an empty stub,
+  # zero files). Adwaita's symbolic set has these, but they're baked
+  # solid-fill SVGs (#2e3436, confirmed by reading the raw files) meant
+  # to be recolored via GTK's symbolic-icon-aware loader -- wofi's dmenu
+  # img: syntax just rasterizes a file directly (gdk_pixbuf_new_from_file,
+  # confirmed via wofi.c source), no recoloring, so as shipped they'd
+  # render near-black and be invisible against a dark pill. Recolored
+  # once here to solid white instead.
   powerIcons = pkgs.runCommand "wofi-power-icons" { } ''
     mkdir -p $out
     recolor() {
@@ -38,9 +36,52 @@ let
     }
     recolor ${pkgs.adwaita-icon-theme}/share/icons/Adwaita/symbolic/status/system-lock-screen-symbolic.svg $out/lock.svg
     recolor ${pkgs.adwaita-icon-theme}/share/icons/Adwaita/symbolic/actions/system-log-out-symbolic.svg $out/logout.svg
-    recolor ${pkgs.adwaita-icon-theme}/share/icons/Adwaita/symbolic/status/weather-clear-night-symbolic.svg $out/suspend.svg
     recolor ${pkgs.adwaita-icon-theme}/share/icons/Adwaita/symbolic/actions/system-reboot-symbolic.svg $out/reboot.svg
     recolor ${pkgs.adwaita-icon-theme}/share/icons/Adwaita/symbolic/actions/system-shutdown-symbolic.svg $out/shutdown.svg
+  '';
+
+  # Picks a random wallpaper and applies it -- self-contained (kills +
+  # relaunches hyprpaper itself, matching wallpaper-picker's pattern)
+  # rather than relying on a caller to also launch hyprpaper, since this
+  # now runs from two different contexts: hyprland.lua's autostart
+  # (first launch, nothing running yet -- pkill is a harmless no-op) and
+  # the random-wallpaper-timer systemd unit below (session already
+  # running, needs the actual kill+relaunch to make the change visible).
+  # Bound here (not inline in home.packages) so the systemd service can
+  # reference its exact store path directly, same reasoning as the
+  # existing quickshell systemd user service already does.
+  randomWallpaperScript = pkgs.writeShellScriptBin "random-wallpaper" ''
+    wallpaper_dir="$HOME/Pictures/wallpapers"
+    runtime_conf="$HOME/.cache/hypr/hyprpaper-runtime.conf"
+
+    [ -d "$wallpaper_dir" ] || exit 0
+
+    candidates=()
+    for f in "$wallpaper_dir"/*.jpg "$wallpaper_dir"/*.jpeg "$wallpaper_dir"/*.png "$wallpaper_dir"/*.webp; do
+      [ -f "$f" ] || continue
+      candidates+=("$f")
+    done
+    [ "''${#candidates[@]}" -gt 0 ] || exit 0
+
+    path="''${candidates[RANDOM % ''${#candidates[@]}]}"
+
+    ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$runtime_conf")"
+    ${pkgs.coreutils}/bin/printf '%s\n' \
+      "splash = false" \
+      "wallpaper {" \
+      "    monitor =" \
+      "    path = $path" \
+      "    fit_mode = cover" \
+      "}" > "$runtime_conf"
+
+    ${pkgs.procps}/bin/pkill -x hyprpaper 2>/dev/null
+    sleep 0.2
+    ${pkgs.hyprpaper}/bin/hyprpaper -c "$runtime_conf" &
+    disown
+
+    ${pkgs.matugen}/bin/matugen image "$path" --mode dark
+
+    apply-colors "$path"
   '';
 
 in
@@ -115,14 +156,45 @@ in
     wl-clipboard # wl-copy/wl-paste, used by screenshot-region and cliphist
     cliphist # clipboard history, see clipboard-picker below
 
+    # Wayland equivalent of the lock-screen script above (that one's
+    # xset/i3lock calls are X11-only) -- same intent: screens never time
+    # out while active/unlocked, only while actually locked, and only
+    # after a delay, not immediately. hyprlock blocks in the foreground
+    # until unlocked; the background timer turns monitors off 2 minutes
+    # later, but only if it hasn't already been killed by an unlock
+    # happening first. `dpms on` after hyprlock exits covers the case
+    # where the screens already went off and the user is unlocking from
+    # a dark screen (input should wake them anyway, but this is
+    # deterministic rather than relying on it).
+    #
+    # Classic `hyprctl dispatch dpms off` doesn't work on this Lua-config
+    # build -- confirmed earlier (a different dispatcher, but the same
+    # failure class): hyprctl's own CLI-to-Lua bridge dumps multi-word
+    # dispatch args as an unquoted, comma-less Lua call
+    # (`hl.dispatch(name arg)`), which is invalid Lua syntax whenever the
+    # dispatcher takes an argument at all. `hyprctl eval` calling the
+    # native `hl.dsp.dpms(...)` binding directly is what's confirmed
+    # working (tested live via the harmless dpms "on" no-op case).
+    (writeShellScriptBin "hyprlock-timeout" ''
+      (
+        sleep 120
+        ${hyprland}/bin/hyprctl eval 'hl.dsp.dpms("off")'
+      ) &
+      timer_pid=$!
+
+      ${hyprlock}/bin/hyprlock
+
+      kill "$timer_pid" 2>/dev/null
+      ${hyprland}/bin/hyprctl eval 'hl.dsp.dpms("on")'
+    '')
+
     # wofi equivalent of power-menu above, bound to $mainMod+M in
-    # hyprland.lua. Lock uses hyprlock directly, not the lock-screen
+    # hyprland.lua. Lock uses hyprlock-timeout above, not the lock-screen
     # script above (that one's xset/i3lock calls are X11-only).
     (writeShellScriptBin "wofi-power" ''
       entries=$(${coreutils}/bin/printf '%s\n' \
         "img:${powerIcons}/lock.svg:text:Lock" \
         "img:${powerIcons}/logout.svg:text:Logout" \
-        "img:${powerIcons}/suspend.svg:text:Suspend" \
         "img:${powerIcons}/reboot.svg:text:Reboot" \
         "img:${powerIcons}/shutdown.svg:text:Shutdown")
 
@@ -131,9 +203,8 @@ in
 
       label=$(printf '%s' "$choice" | ${gnused}/bin/sed -n 's/^img:.*:text:\(.*\)$/\1/p')
       case "$label" in
-        Lock) ${hyprlock}/bin/hyprlock ;;
+        Lock) hyprlock-timeout ;;
         Logout) ${hyprland}/bin/hyprctl dispatch exit ;;
-        Suspend) ${systemd}/bin/systemctl suspend ;;
         Reboot) ${systemd}/bin/systemctl reboot ;;
         Shutdown) ${systemd}/bin/systemctl poweroff ;;
       esac
@@ -170,7 +241,7 @@ in
       if [ -n "$accent" ]; then
         ${coreutils}/bin/printf '%s\n' \
           "@define-color pill_border_accent $accent;" \
-          "#workspaces, #tray, #clock, #cpu, #memory, #temperature, #pulseaudio, #custom-screenshot, #custom-clipboard {" \
+          "#workspaces, #tray, #clock, #cpu, #memory, #temperature, #network, #pulseaudio, #custom-screenshot, #custom-clipboard {" \
           "  border: 2px solid alpha(@pill_border_accent, 0.6);" \
           "}" > "$pill_border_css"
       else
@@ -301,42 +372,7 @@ in
       apply-colors "$path"
     '')
 
-    # Picks a random wallpaper on every session start (hyprland.lua's
-    # autostart: "random-wallpaper && hyprpaper -c <the same runtime_conf
-    # this writes>"). Shares that runtime_conf path with wallpaper-picker
-    # above so a session-start random pick and a later manual pick both
-    # go through the exact same hyprpaper/matugen/apply-colors path --
-    # hyprland/hyprpaper.conf (the static, home-manager-deployed default)
-    # is no longer what actually loads at session start, kept only as a
-    # manual fallback/reference.
-    (writeShellScriptBin "random-wallpaper" ''
-      wallpaper_dir="$HOME/Pictures/wallpapers"
-      runtime_conf="$HOME/.cache/hypr/hyprpaper-runtime.conf"
-
-      [ -d "$wallpaper_dir" ] || exit 0
-
-      candidates=()
-      for f in "$wallpaper_dir"/*.jpg "$wallpaper_dir"/*.jpeg "$wallpaper_dir"/*.png "$wallpaper_dir"/*.webp; do
-        [ -f "$f" ] || continue
-        candidates+=("$f")
-      done
-      [ "''${#candidates[@]}" -gt 0 ] || exit 0
-
-      path="''${candidates[RANDOM % ''${#candidates[@]}]}"
-
-      ${coreutils}/bin/mkdir -p "$(${coreutils}/bin/dirname "$runtime_conf")"
-      ${coreutils}/bin/printf '%s\n' \
-        "splash = false" \
-        "wallpaper {" \
-        "    monitor =" \
-        "    path = $path" \
-        "    fit_mode = cover" \
-        "}" > "$runtime_conf"
-
-      ${matugen}/bin/matugen image "$path" --mode dark
-
-      apply-colors "$path"
-    '')
+    randomWallpaperScript
 
     # Region-select screenshot, bound to $mainMod+S in hyprland.lua and
     # the custom/screenshot waybar module (./hyprland/waybar/shared.jsonc).
@@ -616,6 +652,52 @@ in
       ExecStart = "${inputs.quickshell.packages.${pkgs.system}.default}/bin/quickshell -p %h/.config/quickshell/shell.qml";
       Restart = "on-failure";
     };
+  };
+
+  # Re-randomizes the wallpaper every 30 minutes (Hyprland session only --
+  # PartOf graphical-session.target the same way quickshell is above, so
+  # it doesn't fire outside a live session). The actual work (matugen,
+  # apply-colors, hyprpaper kill+relaunch) all lives in
+  # randomWallpaperScript itself (see the top of this file) -- this unit
+  # just calls it on a timer, same script hyprland.lua's autostart uses
+  # for the initial pick.
+  systemd.user.services.random-wallpaper-timer = {
+    Unit = {
+      Description = "Randomize the wallpaper";
+      PartOf = [ "graphical-session.target" ];
+      After = [ "graphical-session.target" ];
+    };
+    Service = {
+      Type = "oneshot";
+      # KillMode=process (not the default control-group): random-wallpaper
+      # backgrounds+disowns hyprpaper before exiting, but `disown` only
+      # detaches it from the shell's own job control, not from systemd's
+      # cgroup tracking. With the default KillMode, systemd kills every
+      # process left in the service's cgroup the moment the oneshot
+      # script itself exits -- including that just-launched, disowned
+      # hyprpaper -- so the "new" wallpaper process was being silently
+      # killed a moment after starting. Confirmed live: hyprpaper's own
+      # startup log printed, then `pgrep hyprpaper` came back empty.
+      # KillMode=process only ever tracks/kills the main script PID,
+      # letting the backgrounded child actually survive.
+      KillMode = "process";
+      # random-wallpaper itself calls `apply-colors` by bare name -- fine
+      # when Hyprland's own exec_cmd spawns it (inherits the session's
+      # full PATH), but a systemd --user service's PATH is much more
+      # restricted by default and wouldn't otherwise find it (same class
+      # of issue as greetd's PATH fix in configuration.nix).
+      Environment = "PATH=${config.home.profileDirectory}/bin:/run/current-system/sw/bin";
+      ExecStart = "${randomWallpaperScript}/bin/random-wallpaper";
+    };
+  };
+
+  systemd.user.timers.random-wallpaper-timer = {
+    Unit.Description = "Randomize the wallpaper every 30 minutes";
+    Timer = {
+      OnUnitActiveSec = "30min";
+      OnStartupSec = "30min";
+    };
+    Install.WantedBy = [ "timers.target" ];
   };
 
   xdg.enable = true;
