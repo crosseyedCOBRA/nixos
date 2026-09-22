@@ -315,6 +315,7 @@
     "eu.betterbird.Betterbird" #email client
     "com.chatterino.chatterino" #chatterino
     "io.github.radiolamp.mangojuice" #mangojuice
+    "com.notesnook.Notesnook" #notesnook
   ];
 
   # This value determines the NixOS release from which the default
