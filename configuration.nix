@@ -14,6 +14,16 @@
   # available kernel — use the latest stable release instead.
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
+  # sp5100_tco (AMD SP5100/SB800 chipset hardware watchdog timer) is what
+  # was actually behind the "watchdog0: watchdog did not stop!" hang on
+  # shutdown/reboot -- confirmed via journalctl on this exact machine
+  # (a kernel message, nothing to do with Hyprland despite the similar
+  # wording). The kernel can't always cleanly disable this specific
+  # hardware watchdog once armed, and nothing here intentionally uses it
+  # (it's meant for auto-reboot-on-hang server scenarios) -- blacklisting
+  # it outright means it's never armed in the first place.
+  boot.blacklistedKernelModules = [ "sp5100_tco" ];
+
   # --- Networking ---
   networking.hostName = "nixos"; # keep in sync with flake.nix's `hostname` let-binding
   networking.networkmanager.enable = true;
