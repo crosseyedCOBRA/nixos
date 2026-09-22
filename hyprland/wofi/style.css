@@ -13,15 +13,13 @@
 
 window {
   background-color: @bg;
-  border: 5.5px solid @accent;
-  /* Matches hyprland.lua's decoration.rounding (10) exactly -- that's a
-     compositor-level clip applied to the whole window surface from
-     outside, completely independent of this CSS. A mismatch between
-     what GTK draws here and what Hyprland clips to outside it is what
-     actually caused every corner/border artifact this session (more
-     visible on a sparse, short window like the power menu than on the
-     dense app launcher, which is why they looked different despite
-     identical CSS). Matching it exactly removes the seam entirely. */
+  /* No colored border at all -- avoids the whole class of
+     border/corner-vs-Hyprland-compositor-rounding mismatch chased all
+     session, rather than continuing to fight it. border-radius still
+     matches hyprland.lua's decoration.rounding (10, a compositor-level
+     clip on the whole window surface, independent of this CSS) so the
+     window's actual shape stays consistent even with nothing drawn to
+     outline it. */
   border-radius: 10px;
   padding: 8px;
 }
@@ -44,10 +42,6 @@ decoration {
   margin-bottom: 8px;
   border: 1px solid @outline;
   border-radius: 8px;
-}
-
-#input:focus {
-  border-color: @accent;
 }
 
 #inner-box {
