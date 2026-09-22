@@ -18,6 +18,17 @@ window {
   padding: 8px;
 }
 
+/* GTK windows can have a separate "decoration" CSS node (client-side
+   decoration shadow/border) distinct from the window node above -- if
+   the active GTK theme (Adwaita-dark) draws its own decoration
+   shadow/border in a different color, it'd show layered with ours,
+   which is exactly what a two-color border looks like. Neutralized. */
+decoration {
+  border: none;
+  box-shadow: none;
+  margin: 0;
+}
+
 #input {
   background-color: @surface;
   color: @text;
