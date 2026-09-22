@@ -322,6 +322,35 @@
       end = "${pkgs.systemd}/bin/systemctl --user --machine=${username}@ start random-wallpaper-timer.timer";
     };
   };
+  # gamemode's own actual performance tweaks (CPU governor, split-lock
+  # mitigation) were failing outright: `pkexec: Not authorized` for
+  # cpugovctl/procsysctl (confirmed live via journalctl --user -u
+  # gamemoded). Root cause: the gamemode package DOES ship its own
+  # polkit rule (share/polkit-1/rules.d/gamemode.rules, granting a
+  # "gamemode" group passwordless access to exactly these action IDs),
+  # and it IS correctly aggregated into
+  # /run/current-system/sw/share/polkit-1/rules.d/ -- but polkit's own
+  # daemon never actually reads rules from that path. It only reads
+  # /etc/polkit-1/rules.d/, which on NixOS is just one
+  # NixOS-generated file (10-nixos.rules) with a fixed set of built-in
+  # rules, not something that dynamically incorporates arbitrary
+  # installed packages' own rules.d files. security.polkit.extraConfig
+  # is what actually gets included in that generated file. Targets
+  # "wheel" (already used for mike) instead of gamemode's own
+  # "gamemode" group, to avoid also needing to create and assign a new
+  # group just for this.
+  security.polkit.extraConfig = ''
+    polkit.addRule(function (action, subject) {
+      if ((action.id == "com.feralinteractive.GameMode.governor-helper" ||
+           action.id == "com.feralinteractive.GameMode.gpu-helper" ||
+           action.id == "com.feralinteractive.GameMode.cpu-helper" ||
+           action.id == "com.feralinteractive.GameMode.procsys-helper") &&
+          subject.isInGroup("wheel"))
+      {
+          return polkit.Result.YES;
+      }
+    });
+  '';
   hardware.steam-hardware.enable = true; # controller udev rules
   # Several UE5 titles (Monster Hunter Wilds, Lords of the Fallen, The Blood
   # of Dawnwalker) crash or fail to launch under Proton with the kernel's
