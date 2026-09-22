@@ -243,7 +243,7 @@ in
           "@define-color pill_border_accent $accent;" \
           "#workspaces, #tray, #clock, #cpu, #memory, #temperature, #network, #pulseaudio, #custom-screenshot, #custom-clipboard {" \
           "  border: 2px solid alpha(@pill_border_accent, 0.6);" \
-          "  border-radius: 999px;" \
+          "  border-radius: 10px;" \
           "  background-clip: border-box;" \
           "}" > "$pill_border_css"
       else

@@ -57,7 +57,7 @@ window#waybar {
   background: alpha(@surface, 0.75);
   margin: 2px 6px;
   padding: 3px 12px;
-  border-radius: 999px;
+  border-radius: 10px;
   transition: all 0.2s ease;
 }
 
