@@ -301,6 +301,14 @@
   };
   programs.gamemode = {
     enable = true;
+    # Confirmed live: "Failed to call Inhibit on org.freedesktop.
+    # ScreenSaver: No route to host" -- nothing in this Hyprland session
+    # implements that D-Bus interface, so this always failed outright.
+    # Not something worth providing just to satisfy it, either: screens
+    # here already never auto-blank unless locked (hyprlock-timeout,
+    # ./hyprland/hyprland.lua), so there's nothing for it to meaningfully
+    # need to inhibit in the first place.
+    settings.general.inhibit_screensaver = 0;
     # Pauses the wallpaper timer (home.nix's random-wallpaper-timer) for
     # as long as any gamemoderun-wrapped game is actually running, since
     # every installed game already launches through it -- no separate
