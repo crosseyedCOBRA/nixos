@@ -14,7 +14,7 @@
 window {
   background-color: @bg;
   border: 5.5px solid @accent;
-  border-radius: 6px;
+  border-radius: 0px;
   padding: 8px;
 }
 
