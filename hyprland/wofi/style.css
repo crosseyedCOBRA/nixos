@@ -14,7 +14,15 @@
 window {
   background-color: @bg;
   border: 5.5px solid @accent;
-  border-radius: 0px;
+  /* Matches hyprland.lua's decoration.rounding (10) exactly -- that's a
+     compositor-level clip applied to the whole window surface from
+     outside, completely independent of this CSS. A mismatch between
+     what GTK draws here and what Hyprland clips to outside it is what
+     actually caused every corner/border artifact this session (more
+     visible on a sparse, short window like the power menu than on the
+     dense app launcher, which is why they looked different despite
+     identical CSS). Matching it exactly removes the seam entirely. */
+  border-radius: 10px;
   padding: 8px;
 }
 
