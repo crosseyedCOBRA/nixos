@@ -299,7 +299,23 @@
     localNetworkGameTransfers.openFirewall = true;
     gamescopeSession.enable = true;
   };
-  programs.gamemode.enable = true;
+  programs.gamemode = {
+    enable = true;
+    # Pauses the wallpaper timer (home.nix's random-wallpaper-timer) for
+    # as long as any gamemoderun-wrapped game is actually running, since
+    # every installed game already launches through it -- no separate
+    # manual toggle to remember. gamemoded is D-Bus-activated (confirmed:
+    # no persistent gamemoded.service exists to check its running user
+    # against), so its execution context for these scripts isn't
+    # something to assume -- --machine=<user>@ is the standard, safe way
+    # to target a specific user's systemd --user session bus regardless
+    # of whether the caller turns out to already be that user or a more
+    # privileged one.
+    settings.custom = {
+      start = "systemctl --user --machine=${username}@ stop random-wallpaper-timer.timer";
+      end = "systemctl --user --machine=${username}@ start random-wallpaper-timer.timer";
+    };
+  };
   hardware.steam-hardware.enable = true; # controller udev rules
   # Several UE5 titles (Monster Hunter Wilds, Lords of the Fallen, The Blood
   # of Dawnwalker) crash or fail to launch under Proton with the kernel's
