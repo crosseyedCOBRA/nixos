@@ -311,9 +311,15 @@
     # to target a specific user's systemd --user session bus regardless
     # of whether the caller turns out to already be that user or a more
     # privileged one.
+    # Confirmed live via journalctl --user -u gamemoded: these run through
+    # /bin/sh with a minimal PATH that doesn't include systemctl at all
+    # ("systemctl: command not found", script exit 127) -- same PATH-
+    # resolution class of bug as greetd/the wallpaper timer's own
+    # apply-colors call earlier. Full store path instead of relying on
+    # PATH.
     settings.custom = {
-      start = "systemctl --user --machine=${username}@ stop random-wallpaper-timer.timer";
-      end = "systemctl --user --machine=${username}@ start random-wallpaper-timer.timer";
+      start = "${pkgs.systemd}/bin/systemctl --user --machine=${username}@ stop random-wallpaper-timer.timer";
+      end = "${pkgs.systemd}/bin/systemctl --user --machine=${username}@ start random-wallpaper-timer.timer";
     };
   };
   hardware.steam-hardware.enable = true; # controller udev rules
