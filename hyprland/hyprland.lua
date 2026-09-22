@@ -270,6 +270,18 @@ hl.window_rule({ match = { class = "chrome-music.youtube.com__-Default" }, works
 -- present and future, rather than needing a rule per webapp.
 hl.window_rule({ match = { class = "^chrome-" }, tile = true })
 
+-- wofi (app launcher/power menu/wallpaper picker) turned out to be a
+-- regular floating Hyprland client, not a pure layer-shell surface --
+-- confirmed live via `hyprctl clients`: class "wofi", floating: true,
+-- showing up in the client list at all (layer-shell surfaces don't).
+-- That means it was getting Hyprland's own general:col.active_border
+-- gradient decoration (accent -> accent2, see apply-colors/home.nix)
+-- drawn by the compositor around it, completely independent of
+-- ../wofi/style.css -- explains why removing every border from that
+-- CSS file never fully got rid of a colored border. border_size = 0
+-- kills it at the source instead of continuing to fight it in GTK CSS.
+hl.window_rule({ match = { class = "^wofi$" }, border_size = 0 })
+
 -- See https://wiki.hypr.land/Configuring/Layouts/Dwindle-Layout/ for more
 hl.config({
     dwindle = {
