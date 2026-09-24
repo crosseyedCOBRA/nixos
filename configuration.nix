@@ -8,11 +8,20 @@
   # --- Bootloader ---
   # Assumes UEFI. If this machine is legacy BIOS, swap this for boot.loader.grub instead.
   boot.loader.systemd-boot.enable = true;
+  boot.loader.systemd-boot.memtest86.enable = true; # adds a memtest86+ boot-menu entry
   boot.loader.efi.canTouchEfiVariables = true;
 
   # NixOS's default `linuxPackages` is a conservative pin, not the newest
   # available kernel — use the latest stable release instead.
   boot.kernelPackages = pkgs.linuxPackages_latest;
+
+  # sched-ext: swap the kernel's default CFS/EEVDF scheduler for a
+  # BPF-loaded one. scx_bpfland prioritizes low latency for
+  # interactive/foreground tasks (games, audio) over raw throughput.
+  services.scx = {
+    enable = true;
+    scheduler = "scx_bpfland";
+  };
 
   # sp5100_tco (AMD SP5100/SB800 chipset hardware watchdog timer) is what
   # was actually behind the "watchdog0: watchdog did not stop!" hang on
@@ -50,6 +59,12 @@
     enable32Bit = true; # 32-bit libs, e.g. for Steam/Wine
   };
   services.xserver.videoDrivers = [ "amdgpu" ];
+  hardware.amdgpu.overdrive.enable = true; # required for LACT to actually overclock on AMD
+
+  # LACT: GPU monitoring/overclocking daemon + GUI. Runs as a root systemd
+  # service (lactd) since it needs direct sysfs/DRM access; the GUI just
+  # talks to it over a socket.
+  services.lact.enable = true;
 
   # --- Audio (pipewire) ---
   security.rtkit.enable = true;
@@ -259,6 +274,7 @@
     p7zip
     file
     python3
+    dmidecode # RAM/BIOS hardware info -- needs root, hence a system package
     chromium
     brave
     claude-code
