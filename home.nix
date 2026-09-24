@@ -739,4 +739,15 @@ in
   xdg.configFile."kitty/kitty.conf".source = ./hyprland/kitty/kitty.conf;
   xdg.configFile."swaync/config.json".source = ./hyprland/swaync/config.json;
   xdg.configFile."swaync/style.css".source = ./hyprland/swaync/style.css;
+
+  # Firefox/Zen sandbox its cubeb audio backend into the RDD process by
+  # default, which is a well-documented source of intermittent audio
+  # popping/crackling when the underlying backend is PipeWire (as here --
+  # confirmed via `wpctl status`: Zen connects through pipewire-pulse).
+  # user.js (unlike prefs.js) is read fresh on every startup and never
+  # gets overwritten by the browser itself, so it's the right place for a
+  # durable override outside of about:config.
+  xdg.configFile."zen/az49i3nb.Default Profile/user.js".text = ''
+    user_pref("media.cubeb.sandbox", false);
+  '';
 }
