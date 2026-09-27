@@ -724,8 +724,26 @@ in
   xdg.configFile."hypr/hyprlock.conf".source = ./hyprland/hyprlock.conf;
   xdg.configFile."waybar/config.jsonc".source = ./hyprland/waybar/config.jsonc;
   xdg.configFile."waybar/shared.jsonc".source = ./hyprland/waybar/shared.jsonc;
-  xdg.configFile."waybar/style.css".source = ./hyprland/waybar/style.css;
-  xdg.configFile."wofi/style.css".source = ./hyprland/wofi/style.css;
+  # waybar/wofi/swaync's style.css @import colors.css (and waybar also
+  # pill-border.css) by a "../hypr/..." relative path -- but these files
+  # are deployed as symlinks into the Nix store, and GTK's CSS @import
+  # resolves relative paths against that symlink's resolved store
+  # location, not ~/.config. Since colors.css/pill-border.css are
+  # deliberately NOT part of that static store tree (matugen overwrites
+  # them at runtime -- see the comment on matugen/templates/colors.css
+  # below), the relative import 404s silently, GTK drops every rule that
+  # references an @define-color from it, and the window renders with no
+  # background at all. Substituting in an absolute path (still derived
+  # from home.homeDirectory, not a hardcoded username) at build time
+  # keeps the portability goal while actually resolving correctly.
+  xdg.configFile."waybar/style.css".text = builtins.replaceStrings
+    [ "../hypr/colors.css" "../hypr/pill-border.css" ]
+    [ "${config.home.homeDirectory}/.config/hypr/colors.css" "${config.home.homeDirectory}/.config/hypr/pill-border.css" ]
+    (builtins.readFile ./hyprland/waybar/style.css);
+  xdg.configFile."wofi/style.css".text = builtins.replaceStrings
+    [ "../hypr/colors.css" ]
+    [ "${config.home.homeDirectory}/.config/hypr/colors.css" ]
+    (builtins.readFile ./hyprland/wofi/style.css);
   xdg.configFile."wofi/config".source = ./hyprland/wofi/config;
   # config.toml + the template are versioned; the *generated* colors.css
   # they produce (~/.config/hypr/colors.css) deliberately isn't deployed
@@ -738,7 +756,10 @@ in
   xdg.configFile."matugen/templates/fastfetch-config.jsonc".source = ./hyprland/matugen/templates/fastfetch-config.jsonc;
   xdg.configFile."kitty/kitty.conf".source = ./hyprland/kitty/kitty.conf;
   xdg.configFile."swaync/config.json".source = ./hyprland/swaync/config.json;
-  xdg.configFile."swaync/style.css".source = ./hyprland/swaync/style.css;
+  xdg.configFile."swaync/style.css".text = builtins.replaceStrings
+    [ "../hypr/colors.css" ]
+    [ "${config.home.homeDirectory}/.config/hypr/colors.css" ]
+    (builtins.readFile ./hyprland/swaync/style.css);
 
   # Firefox/Zen sandbox its cubeb audio backend into the RDD process by
   # default, which is a well-documented source of intermittent audio
