@@ -95,6 +95,19 @@ hl.on("hyprland.start", function ()
   hl.exec_cmd("wl-paste --watch cliphist store") -- feeds clipboard-picker's history (../home.nix)
   hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
   hl.exec_cmd("systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE")
+  -- xdg-desktop-portal.service (and the Hyprland/gtk portal backends) all
+  -- have Requisite=graphical-session.target -- they refuse to even
+  -- attempt starting unless that target is already active. Nothing
+  -- marks it active on its own here (the home-manager Hyprland module
+  -- normally does this automatically, but this config bypasses that
+  -- module for a raw Lua config), which is why screen-capture portals
+  -- (e.g. WFHelper's OCR overlay, or anything else using
+  -- xdg-desktop-portal's ScreenCast interface) failed with "Could not
+  -- activate remote peer 'org.freedesktop.portal.Desktop'". graphical-
+  -- session.target itself refuses direct `systemctl start` (it's
+  -- "requested by dependency only") -- nixos-fake-graphical-session.target
+  -- is NixOS's own sanctioned stand-in for exactly this case.
+  hl.exec_cmd("systemctl --user start nixos-fake-graphical-session.target")
 end)
 
 

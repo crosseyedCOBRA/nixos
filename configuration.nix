@@ -1,5 +1,25 @@
 { config, pkgs, lib, username, inputs, ... }:
 
+let
+  # protonhax isn't in nixpkgs (open request: NixOS/nixpkgs#368812) -- it's
+  # a single upstream bash script (jcnils/protonhax) that lets a separate
+  # program run inside an already-running Steam game's Proton/Wine
+  # environment. AlecaFrame's own Linux install docs require it: Warframe's
+  # launch options call `protonhax init %command%`, and AlecaFrame/Overwolf
+  # then get launched into that same prefix via `protonhax exec`.
+  protonhax = pkgs.stdenvNoCC.mkDerivation {
+    pname = "protonhax";
+    version = "unstable-2024";
+    src = pkgs.fetchurl {
+      url = "https://raw.githubusercontent.com/jcnils/protonhax/main/protonhax";
+      sha256 = "sha256-QSe/mW8GjH6CX1TnO/RiHJIffrv6uZZmD8+IN2Z5In8=";
+    };
+    dontUnpack = true;
+    installPhase = ''
+      install -Dm755 $src $out/bin/protonhax
+    '';
+  };
+in
 {
   imports = [
     ./hardware-configuration.nix
@@ -277,6 +297,10 @@
     dmidecode # RAM/BIOS hardware info -- needs root, hence a system package
     chromium
     brave
+    firefox
+    protonhax
+    protontricks
+    rusty-path-of-building # Path of Building / PoB2 -- native Linux runtime, no Wine needed
     claude-code
     vesktop
     xdg-user-dirs
