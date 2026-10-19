@@ -22,6 +22,14 @@
 
     nix-flatpak.url = "github:gmodena/nix-flatpak";
 
+    # The Arch dotfiles repo, for its wallpapers/ folder (home.nix links it to
+    # ~/.config/wallpapers) -- one copy of the images instead of two. After
+    # adding wallpapers there: `nix flake update hyprland-dotfiles`.
+    hyprland-dotfiles = {
+      url = "github:crosseyedCOBRA/hyprland";
+      flake = false;
+    };
+
     # Third-party overlay swapping xorg-server for the XLibre fork.
     # dev-26.11 tracks nixos-unstable (matches our nixpkgs input above).
     xlibre-overlay = {

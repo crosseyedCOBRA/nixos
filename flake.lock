@@ -38,6 +38,22 @@
         "type": "github"
       }
     },
+    "hyprland-dotfiles": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792434832,
+        "narHash": "sha256-eltW4tT17xKLjHyBRini6372k3tekBAq5K8lTLMtM0Y=",
+        "owner": "crosseyedCOBRA",
+        "repo": "hyprland",
+        "rev": "a15ab14df2c081ea1699271eac80564427562048",
+        "type": "github"
+      },
+      "original": {
+        "owner": "crosseyedCOBRA",
+        "repo": "hyprland",
+        "type": "github"
+      }
+    },
     "nix-flatpak": {
       "locked": {
         "lastModified": 1789496567,
@@ -107,6 +123,7 @@
     "root": {
       "inputs": {
         "home-manager": "home-manager",
+        "hyprland-dotfiles": "hyprland-dotfiles",
         "nix-flatpak": "nix-flatpak",
         "nixpkgs": "nixpkgs",
         "quickshell": "quickshell",

@@ -131,6 +131,21 @@ in
       package = pkgs.adw-gtk3;
     };
     gtk4.theme = null;
+    # The rest of what nwg-look writes on Arch, for identical settings.ini files.
+    gtk3.extraConfig = {
+      gtk-button-images = 0;
+      gtk-menu-images = 0;
+      gtk-enable-event-sounds = 1;
+      gtk-enable-input-feedback-sounds = 0;
+      gtk-toolbar-style = "GTK_TOOLBAR_ICONS";
+      gtk-toolbar-icon-size = "GTK_ICON_SIZE_LARGE_TOOLBAR";
+      gtk-xft-antialias = 1;
+      gtk-xft-hinting = 1;
+      gtk-xft-hintstyle = "hintslight";
+      gtk-xft-rgba = "rgb";
+    };
+    # Name only (no package), so home-manager still leaves gtk-4.0/gtk.css alone.
+    gtk4.extraConfig.gtk-theme-name = "adw-gtk3-dark";
     iconTheme = {
       name = "Papirus";
       package = pkgs.papirus-icon-theme;
@@ -492,16 +507,26 @@ in
     [ "${config.home.homeDirectory}/" ]
     (builtins.readFile ./hyprland/qt6ct/qt6ct.conf);
   xdg.configFile."qt6ct/colors/breeze-dark.conf".source = ./hyprland/qt6ct/colors/breeze-dark.conf;
-  # The scripts look for wallpapers in ~/.config/wallpapers (on Arch that's
-  # the dotfiles repo's wallpapers/ folder); here it points at the existing
-  # ~/Pictures/wallpapers. Out-of-store, so adding images needs no rebuild.
-  xdg.configFile."wallpapers".source =
-    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Pictures/wallpapers";
+  # The scripts look for wallpapers in ~/.config/wallpapers -- the same
+  # wallpapers/ folder the Arch setup uses, from the hyprland-dotfiles flake
+  # input (see flake.nix).
+  xdg.configFile."wallpapers".source = "${inputs.hyprland-dotfiles}/wallpapers";
 
   # Folders matugen renders into but nothing else creates (it won't create
   # them itself), and Vesktop's theme switched on -- Vesktop rewrites its
   # own settings.json, so it's merged into rather than deployed.
+  #
+  # kdeglobals (KDE apps' colors) and btop.conf (color_theme = matugen) are
+  # copied, not linked: KDE apps and btop rewrite these files themselves,
+  # which a read-only store link would break. Like install.sh on Arch, the
+  # repo version wins on every switch; the replaced file is kept as .bak.
   home.activation.hyprlandThemeDirs = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    place() {
+      if [ -e "$2" ] && ! ${pkgs.diffutils}/bin/cmp -s "$1" "$2"; then run cp "$2" "$2.bak"; fi
+      ${pkgs.diffutils}/bin/cmp -s "$1" "$2" || run install -Dm644 "$1" "$2"
+    }
+    place ${./hyprland/kde/kdeglobals} "$HOME/.config/kdeglobals"
+    place ${./hyprland/btop/btop.conf} "$HOME/.config/btop/btop.conf"
     run mkdir -p "$HOME/.cache/hypr" "$HOME/.config/swayosd" "$HOME/.config/btop/themes" \
       "$HOME/.config/vesktop/themes" "$HOME/.config/fastfetch"
     vesk="$HOME/.config/vesktop/settings/settings.json"
