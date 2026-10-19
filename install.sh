@@ -59,3 +59,11 @@ echo "==> Running nixos-rebuild switch (this will take a while on first run)..."
 sudo nixos-rebuild switch --flake "$REPO_DIR#$HOSTNAME"
 
 echo "==> Done. Log in, then run 'passwd' to set your account password if you haven't already."
+cat <<EOF
+    Then, after the first Hyprland login:
+      Steam: sign in, let it finish, quit Steam completely, then run
+        $REPO_DIR/steam/launch-options restore
+      to bring back every game's launch options (gamemoderun mangohud ...).
+      After changing launch options in Steam, save them back to this repo
+      with: $REPO_DIR/steam/launch-options export
+EOF

@@ -279,8 +279,13 @@ in
     isNormalUser = true;
     description = username;
     extraGroups = [ "wheel" "networkmanager" "video" "audio" "input" ];
-    shell = pkgs.bash;
+    # fish, same as the Arch setup -- its config and the starship prompt are
+    # in home.nix (programs.fish / programs.starship).
+    shell = pkgs.fish;
   };
+  # Needed alongside users.users.*.shell: adds fish to /etc/shells and sets
+  # up NixOS's environment and vendor completions for it.
+  programs.fish.enable = true;
   # No password is set here. After the first rebuild, log in at the TTY
   # and run `passwd` to set one (or `passwd mike` as root).
 
@@ -339,6 +344,10 @@ in
     remotePlay.openFirewall = true;
     localNetworkGameTransfers.openFirewall = true;
     gamescopeSession.enable = true;
+    # Every game's launch options (./steam/launch-options.json) start with
+    # `gamemoderun mangohud %command%`; this makes sure mangohud is there
+    # inside Steam's FHS environment too, not just on the host PATH.
+    extraPackages = [ pkgs.mangohud ];
   };
   programs.gamemode = {
     enable = true;
