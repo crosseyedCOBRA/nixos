@@ -1,4 +1,4 @@
-{ config, pkgs, username, inputs, ... }:
+{ config, lib, pkgs, username, inputs, ... }:
 
 let
   wallpaper = ./assets/wallpaper.jpg;
@@ -18,71 +18,13 @@ let
     pink = "#f7768e";
   };
 
-  # wofi-power's per-entry icons (see home.packages below). Papirus is an
-  # app-icon theme -- it has no system-lock-screen/log-out/reboot/
-  # shutdown icons at all (confirmed: empty search across Papirus-Dark,
-  # and its own Inherits=breeze-dark fallback ships as an empty stub,
-  # zero files). Adwaita's symbolic set has these, but they're baked
-  # solid-fill SVGs (#2e3436, confirmed by reading the raw files) meant
-  # to be recolored via GTK's symbolic-icon-aware loader -- wofi's dmenu
-  # img: syntax just rasterizes a file directly (gdk_pixbuf_new_from_file,
-  # confirmed via wofi.c source), no recoloring, so as shipped they'd
-  # render near-black and be invisible against a dark pill. Recolored
-  # once here to solid white instead.
-  powerIcons = pkgs.runCommand "wofi-power-icons" { } ''
-    mkdir -p $out
-    recolor() {
-      ${pkgs.gnused}/bin/sed -E 's/fill="#[0-9a-fA-F]{6}"/fill="#ffffff"/' "$1" > "$2"
-    }
-    recolor ${pkgs.adwaita-icon-theme}/share/icons/Adwaita/symbolic/status/system-lock-screen-symbolic.svg $out/lock.svg
-    recolor ${pkgs.adwaita-icon-theme}/share/icons/Adwaita/symbolic/actions/system-log-out-symbolic.svg $out/logout.svg
-    recolor ${pkgs.adwaita-icon-theme}/share/icons/Adwaita/symbolic/actions/system-reboot-symbolic.svg $out/reboot.svg
-    recolor ${pkgs.adwaita-icon-theme}/share/icons/Adwaita/symbolic/actions/system-shutdown-symbolic.svg $out/shutdown.svg
-  '';
-
-  # Picks a random wallpaper and applies it -- self-contained (kills +
-  # relaunches hyprpaper itself, matching wallpaper-picker's pattern)
-  # rather than relying on a caller to also launch hyprpaper, since this
-  # now runs from two different contexts: hyprland.lua's autostart
-  # (first launch, nothing running yet -- pkill is a harmless no-op) and
-  # the random-wallpaper-timer systemd unit below (session already
-  # running, needs the actual kill+relaunch to make the change visible).
-  # Bound here (not inline in home.packages) so the systemd service can
-  # reference its exact store path directly, same reasoning as the
-  # existing quickshell systemd user service already does.
-  randomWallpaperScript = pkgs.writeShellScriptBin "random-wallpaper" ''
-    wallpaper_dir="$HOME/Pictures/wallpapers"
-    runtime_conf="$HOME/.cache/hypr/hyprpaper-runtime.conf"
-
-    [ -d "$wallpaper_dir" ] || exit 0
-
-    candidates=()
-    for f in "$wallpaper_dir"/*.jpg "$wallpaper_dir"/*.jpeg "$wallpaper_dir"/*.png "$wallpaper_dir"/*.webp; do
-      [ -f "$f" ] || continue
-      candidates+=("$f")
-    done
-    [ "''${#candidates[@]}" -gt 0 ] || exit 0
-
-    path="''${candidates[RANDOM % ''${#candidates[@]}]}"
-
-    ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$runtime_conf")"
-    ${pkgs.coreutils}/bin/printf '%s\n' \
-      "splash = false" \
-      "wallpaper {" \
-      "    monitor =" \
-      "    path = $path" \
-      "    fit_mode = cover" \
-      "}" > "$runtime_conf"
-
-    ${pkgs.procps}/bin/pkill -x hyprpaper 2>/dev/null
-    sleep 0.2
-    ${pkgs.hyprpaper}/bin/hyprpaper -c "$runtime_conf" &
-    disown
-
-    ${pkgs.matugen}/bin/matugen image "$path" --mode dark
-
-    apply-colors "$path"
-  '';
+  # Helper scripts for the Hyprland session (random-wallpaper, apply-colors,
+  # wallpaper-picker, ...), shared with the Arch dotfiles repo -- see
+  # ./hyprland/bin/. They call their tools by bare name, which the session's
+  # PATH (home.packages + environment.systemPackages) provides.
+  hyprScripts = map
+    (name: pkgs.writeScriptBin name (builtins.readFile (./hyprland/bin + "/${name}")))
+    (builtins.attrNames (builtins.readDir ./hyprland/bin));
 
 in
 {
@@ -151,263 +93,19 @@ in
     hyprlock
     matugen # wallpaper -> ~/.config/hypr/colors.css, see ./hyprland/matugen/
     swaynotificationcenter # notification daemon, no Wayland/layer-shell support in dunst (Awesome's daemon)
-    grim # screenshot capture, see screenshot-region below
+    grim # screenshot capture, see ./hyprland/bin/screenshot-region
     slurp # region selector for screenshot-region
     wl-clipboard # wl-copy/wl-paste, used by screenshot-region and cliphist
-    cliphist # clipboard history, see clipboard-picker below
+    cliphist # clipboard history, see ./hyprland/bin/clipboard-picker
 
-    # Wayland equivalent of the lock-screen script above (that one's
-    # xset/i3lock calls are X11-only) -- same intent: screens never time
-    # out while active/unlocked, only while actually locked, and only
-    # after a delay, not immediately. hyprlock blocks in the foreground
-    # until unlocked; the background timer turns monitors off 2 minutes
-    # later, but only if it hasn't already been killed by an unlock
-    # happening first. `dpms on` after hyprlock exits covers the case
-    # where the screens already went off and the user is unlocking from
-    # a dark screen (input should wake them anyway, but this is
-    # deterministic rather than relying on it).
-    #
-    # Classic `hyprctl dispatch dpms off` doesn't work on this Lua-config
-    # build -- confirmed earlier (a different dispatcher, but the same
-    # failure class): hyprctl's own CLI-to-Lua bridge dumps multi-word
-    # dispatch args as an unquoted, comma-less Lua call
-    # (`hl.dispatch(name arg)`), which is invalid Lua syntax whenever the
-    # dispatcher takes an argument at all. `hyprctl eval` calling the
-    # native `hl.dsp.dpms(...)` binding directly is what's confirmed
-    # working (tested live via the harmless dpms "on" no-op case).
-    (writeShellScriptBin "hyprlock-timeout" ''
-      (
-        sleep 120
-        ${hyprland}/bin/hyprctl eval 'hl.dsp.dpms("off")'
-      ) &
-      timer_pid=$!
-
-      ${hyprlock}/bin/hyprlock
-
-      kill "$timer_pid" 2>/dev/null
-      ${hyprland}/bin/hyprctl eval 'hl.dsp.dpms("on")'
-    '')
-
-    # wofi equivalent of power-menu above, bound to $mainMod+M in
-    # hyprland.lua. Lock uses hyprlock-timeout above, not the lock-screen
-    # script above (that one's xset/i3lock calls are X11-only).
-    (writeShellScriptBin "wofi-power" ''
-      entries=$(${coreutils}/bin/printf '%s\n' \
-        "img:${powerIcons}/lock.svg:text:Lock" \
-        "img:${powerIcons}/logout.svg:text:Logout" \
-        "img:${powerIcons}/reboot.svg:text:Reboot" \
-        "img:${powerIcons}/shutdown.svg:text:Shutdown")
-
-      choice=$(printf '%s' "$entries" | ${wofi}/bin/wofi -dmenu --allow-images -p "Power")
-      [ -n "$choice" ] || exit 0
-
-      label=$(printf '%s' "$choice" | ${gnused}/bin/sed -n 's/^img:.*:text:\(.*\)$/\1/p')
-      case "$label" in
-        Lock) hyprlock-timeout ;;
-        Logout) ${hyprland}/bin/hyprctl dispatch exit ;;
-        Reboot) ${systemd}/bin/systemctl reboot ;;
-        Shutdown) ${systemd}/bin/systemctl poweroff ;;
-      esac
-    '')
-
-    # Regenerates colors from ~/.config/hypr/colors.css (already written
-    # by matugen -- see ./hyprland/matugen/) into every app that needs a
-    # live push rather than just re-reading a file on its own next
-    # launch, plus repoints hyprlock's background at whichever wallpaper
-    # is now current ($1). Shared between hyprland.lua's autostart (after
-    # the session's default-wallpaper matugen run, passing that default
-    # wallpaper's path) and wallpaper-picker below (after each new pick,
-    # passing the newly picked path), so both paths apply everything
-    # identically.
-    (writeShellScriptBin "apply-colors" ''
-      wallpaper_path="$1"
-      colors_css="$HOME/.config/hypr/colors.css"
-      [ -f "$colors_css" ] || exit 0
-
-      get_color() {
-        ${gnused}/bin/sed -n "s/^@define-color $1 \(#[0-9a-fA-F]\{6\}\);/\1/p" "$colors_css"
-      }
-
-      accent=$(get_color accent)
-      accent2=$(get_color accent2)
-
-      # Pill borders: always on, across every waybar module (see
-      # ./waybar/style.css's @import of this same file), colored from the
-      # current wallpaper's accent so it always matches the theme.
-      # @define-color here (not a raw hex passed to alpha()) matches the
-      # @name + alpha(@name, N) pattern already used everywhere else in
-      # this file/colors.css.
-      pill_border_css="$HOME/.config/hypr/pill-border.css"
-      if [ -n "$accent" ]; then
-        ${coreutils}/bin/printf '%s\n' \
-          "@define-color pill_border_accent $accent;" \
-          "#workspaces, #tray, #clock, #cpu, #memory, #temperature, #network, #pulseaudio, #custom-screenshot, #custom-clipboard {" \
-          "  border: 2px solid alpha(@pill_border_accent, 0.6);" \
-          "  border-radius: 10px;" \
-          "  background-clip: border-box;" \
-          "}" > "$pill_border_css"
-      else
-        : > "$pill_border_css"
-      fi
-
-      # hyprlock's wallpaper: a full `background { }` block (path + a
-      # light blur), sourced by the static hyprlock.conf's `source =`
-      # line -- kept in ~/.cache (not overwriting hyprlock.conf itself,
-      # which is a read-only home-manager store symlink).
-      if [ -n "$wallpaper_path" ]; then
-        hyprlock_conf="$HOME/.cache/hypr/hyprlock-wallpaper.conf"
-        ${coreutils}/bin/mkdir -p "$(${coreutils}/bin/dirname "$hyprlock_conf")"
-        ${coreutils}/bin/printf '%s\n' \
-          "background {" \
-          "    monitor =" \
-          "    path = $wallpaper_path" \
-          "    color = rgba(25, 20, 20, 1.0)" \
-          "    blur_passes = 2" \
-          "    blur_size = 4" \
-          "    noise = 0.0117" \
-          "    contrast = 0.8916" \
-          "    brightness = 0.8172" \
-          "    vibrancy = 0.1696" \
-          "    vibrancy_darkness = 0.0" \
-          "}" > "$hyprlock_conf"
-      fi
-
-      # Hyprland's active border, applied immediately, no restart needed.
-      # `hyprctl keyword` (the flat-string classic syntax) flatly refuses
-      # to run on a Lua-config setup ("keyword can't work with non-legacy
-      # parsers. Use eval." -- confirmed live), and `eval` itself rejects
-      # the flat "rgba(...) rgba(...) 45deg" string too -- it needs the
-      # same Lua table shape hyprland.lua's own general.col.active_border
-      # uses (colors array + angle), not a plain string. Confirmed live
-      # via `hyprctl getoption general:col.active_border` actually
-      # reflecting the new gradient after this exact call.
-      if [ -n "$accent" ] && [ -n "$accent2" ]; then
-        ${hyprland}/bin/hyprctl eval \
-          "hl.config({ general = { col = { active_border = { colors = {\"rgba(''${accent#\#}ee)\", \"rgba(''${accent2#\#}ee)\"}, angle = 45 } } } })" \
-          >/dev/null 2>&1
-      fi
-
-      # waybar's nix package wraps the real binary (bin/waybar execs into
-      # bin/.waybar-wrapped to set GTK_PATH/XDG_DATA_DIRS/etc) -- the
-      # kernel sets the process's comm name from the *wrapped* binary
-      # after that exec, so `pkill -x waybar` never matches it and the
-      # old bar (stale colors) is left running alongside a new one.
-      # `pkill -f` matches the full command line instead, which always
-      # contains "waybar" (it's in the nix store path itself) regardless
-      # of what the wrapper does to comm/argv.
-      ${procps}/bin/pkill -f waybar 2>/dev/null
-      ${waybar}/bin/waybar &
-      disown
-
-      # kitty: each running instance listens on its own PID-scoped remote
-      # control socket (kitty.conf's listen_on unix:/tmp/kitty-{kitty_pid}).
-      # -a applies to every window in that instance, -c also persists it
-      # as the configured colors so new tabs/windows opened after this
-      # match too, without needing colors.conf to be re-included.
-      for sock in /tmp/kitty-*; do
-        [ -S "$sock" ] || continue
-        ${kitty}/bin/kitty @ --to "unix:$sock" set-colors -a -c "$HOME/.config/kitty/colors.conf" >/dev/null 2>&1
-      done
-
-      # swaync: style.css @imports the same colors.css waybar/wofi do, so
-      # a plain CSS reload (no restart) is enough to pick up new colors.
-      ${swaynotificationcenter}/bin/swaync-client --reload-css >/dev/null 2>&1
-    '')
-
-    # Bound to $mainMod+W in hyprland.lua. hyprpaper (this version) has no
-    # live IPC/reload -- confirmed by reading its source, it has no
-    # socket listener or signal handler at all, unlike what its own wiki
-    # implies -- so swapping wallpaper means kill + relaunch against a
-    # freshly-written config, not an in-place command. Written to a
-    # separate runtime config rather than overwriting
-    # ~/.config/hypr/hyprpaper.conf, since that one's a home-manager
-    # store symlink this can't write to anyway, and this keeps every
-    # session's *first* wallpaper (via hyprland.lua's autostart)
-    # deterministic regardless of whatever was last picked here.
-    (writeShellScriptBin "wallpaper-picker" ''
-      wallpaper_dir="$HOME/Pictures/wallpapers"
-      runtime_conf="$HOME/.cache/hypr/hyprpaper-runtime.conf"
-
-      [ -d "$wallpaper_dir" ] || exit 0
-
-      entries=""
-      for f in "$wallpaper_dir"/*.jpg "$wallpaper_dir"/*.jpeg "$wallpaper_dir"/*.png "$wallpaper_dir"/*.webp; do
-        [ -f "$f" ] || continue
-        # No :text: label segment -- confirmed by reading wofi's own
-        # parse_images()/wofi_dmenu_exec() (src/wofi.c, modes/dmenu.c):
-        # a bare `img:<path>` entry is valid on its own (just no label
-        # widget gets created), and dmenu mode prints the raw selected
-        # line back unmodified, so plain `img:<path>` round-trips fine.
-        # Command substitution strips trailing newlines, so the
-        # separator has to be appended *outside* of it.
-        entries="$entries$(printf 'img:%s' "$f")"$'\n'
-      done
-      [ -n "$entries" ] || exit 0
-
-      # columns/image_size make this a wide image grid instead of wofi's
-      # default single-column vertical list, so wallpapers are actually
-      # previewable at a glance rather than a tiny 32px-tall scrolling
-      # list (confirmed via wofi.5's documented config keys).
-      choice=$(printf '%s' "$entries" | ${wofi}/bin/wofi -dmenu --allow-images -p "Wallpaper" \
-        -W 960 -H 640 --define columns=4 --define image_size=200)
-      [ -n "$choice" ] || exit 0
-
-      path=$(printf '%s' "$choice" | ${gnused}/bin/sed -n 's/^img:\(.*\)$/\1/p')
-      [ -n "$path" ] && [ -f "$path" ] || exit 0
-
-      ${coreutils}/bin/mkdir -p "$(${coreutils}/bin/dirname "$runtime_conf")"
-      ${coreutils}/bin/printf '%s\n' \
-        "splash = false" \
-        "wallpaper {" \
-        "    monitor =" \
-        "    path = $path" \
-        "    fit_mode = cover" \
-        "}" > "$runtime_conf"
-
-      ${procps}/bin/pkill -x hyprpaper 2>/dev/null
-      sleep 0.2
-      ${hyprpaper}/bin/hyprpaper -c "$runtime_conf" &
-      disown
-
-      ${matugen}/bin/matugen image "$path" --mode dark
-
-      apply-colors "$path"
-    '')
-
-    randomWallpaperScript
-
-    # Region-select screenshot, bound to $mainMod+S in hyprland.lua and
-    # the custom/screenshot waybar module (./hyprland/waybar/shared.jsonc).
-    # slurp with no output means the user pressed Escape to cancel --
-    # exit quietly rather than taking a screenshot of nothing selected.
-    (writeShellScriptBin "screenshot-region" ''
-      dir="$HOME/Pictures/Screenshots"
-      ${coreutils}/bin/mkdir -p "$dir"
-
-      geometry=$(${slurp}/bin/slurp)
-      [ -n "$geometry" ] || exit 0
-
-      file="$dir/screenshot-$(${coreutils}/bin/date +%Y%m%d-%H%M%S).png"
-      ${grim}/bin/grim -g "$geometry" "$file"
-      ${wl-clipboard}/bin/wl-copy < "$file"
-      ${libnotify}/bin/notify-send -i "$file" "Screenshot saved" "$file"
-    '')
-
-    # Clipboard history picker, bound to $mainMod+V in hyprland.lua and
-    # the custom/clipboard waybar module (main monitor only, see
-    # ./hyprland/waybar/config.jsonc) -- reads from cliphist's own
-    # history (populated by the `wl-paste --watch cliphist store`
-    # autostart process in hyprland.lua), not the live clipboard.
-    (writeShellScriptBin "clipboard-picker" ''
-      choice=$(${cliphist}/bin/cliphist list | ${wofi}/bin/wofi -dmenu -p "Clipboard")
-      [ -n "$choice" ] || exit 0
-      printf '%s' "$choice" | ${cliphist}/bin/cliphist decode | ${wl-clipboard}/bin/wl-copy
-    '')
-  ];
+    # Qt apps (hyprpolkitagent, ...) in the Hyprland session take their style,
+    # colors and icons from qt6ct (QT_QPA_PLATFORMTHEME, set in hyprland.lua).
+    kdePackages.qt6ct
+    kdePackages.breeze
+  ] ++ hyprScripts;
 
   home.sessionVariables = {
     EDITOR = "vim";
-    GTK_THEME = "Adwaita:dark";
   };
 
   # `xsession.enable` is deliberately left off (it would also generate an
@@ -415,21 +113,32 @@ in
   # back into i3 — see the multi-session setup below). But every session's
   # generic launch script still sources ~/.xprofile if present, so recreate
   # just that one piece by hand: without it, home.sessionVariables (EDITOR,
-  # GTK_THEME, QT_QPA_PLATFORMTHEME, etc.) never reach the session's actual
+  # QT_QPA_PLATFORMTHEME, etc.) never reach the session's actual
   # process tree, only systemd-managed services like quickshell.
   home.file.".xprofile".text = ''
     . "${config.home.profileDirectory}/etc/profile.d/hm-session-vars.sh"
   '';
 
+  # Same theme, icons and font as the Arch setup. matugen layers the
+  # wallpaper's colors on top through ~/.config/gtk-{3,4}.0/gtk.css (see
+  # ./hyprland/matugen/), so neither file may be managed here: gtk4.theme
+  # defaults to gtk.theme, and with it set home-manager writes its own
+  # gtk-4.0/gtk.css -- a read-only symlink matugen can't overwrite.
   gtk = {
     enable = true;
     theme = {
-      name = "Adwaita-dark";
-      package = pkgs.gnome-themes-extra;
+      name = "adw-gtk3-dark";
+      package = pkgs.adw-gtk3;
     };
+    gtk4.theme = null;
     iconTheme = {
-      name = "Papirus-Dark";
+      name = "Papirus";
       package = pkgs.papirus-icon-theme;
+    };
+    font = {
+      name = "Adwaita Sans";
+      size = 11;
+      package = pkgs.adwaita-fonts;
     };
     colorScheme = "dark";
   };
@@ -656,13 +365,17 @@ in
     };
   };
 
+  # Polkit agent for the Hyprland session (started from hyprland.lua's
+  # autostart). The Awesome session keeps using polkit-agent above.
+  services.hyprpolkitagent.enable = true;
+
   # Re-randomizes the wallpaper every 30 minutes (Hyprland session only --
   # PartOf graphical-session.target the same way quickshell is above, so
-  # it doesn't fire outside a live session). The actual work (matugen,
-  # apply-colors, hyprpaper kill+relaunch) all lives in
-  # randomWallpaperScript itself (see the top of this file) -- this unit
-  # just calls it on a timer, same script hyprland.lua's autostart uses
-  # for the initial pick.
+  # it doesn't fire outside a live session; paused while gaming, see
+  # programs.gamemode in configuration.nix). random-wallpaper only writes
+  # the runtime config and recolors; hyprpaper has no reload, so it's
+  # restarted here the same way wallpaper-picker does it. NixOS-only for
+  # now -- the Arch setup has no timer.
   systemd.user.services.random-wallpaper-timer = {
     Unit = {
       Description = "Randomize the wallpaper";
@@ -671,25 +384,27 @@ in
     };
     Service = {
       Type = "oneshot";
-      # KillMode=process (not the default control-group): random-wallpaper
-      # backgrounds+disowns hyprpaper before exiting, but `disown` only
-      # detaches it from the shell's own job control, not from systemd's
-      # cgroup tracking. With the default KillMode, systemd kills every
-      # process left in the service's cgroup the moment the oneshot
-      # script itself exits -- including that just-launched, disowned
-      # hyprpaper -- so the "new" wallpaper process was being silently
-      # killed a moment after starting. Confirmed live: hyprpaper's own
-      # startup log printed, then `pgrep hyprpaper` came back empty.
-      # KillMode=process only ever tracks/kills the main script PID,
-      # letting the backgrounded child actually survive.
+      # KillMode=process (not the default control-group): hyprpaper (and
+      # waybar/swayosd-server, if apply-colors had to start them) are
+      # setsid'd into the background before the script exits, but that
+      # doesn't take them out of the service's cgroup -- with the default
+      # KillMode, systemd kills everything left in it the moment the oneshot
+      # exits, including the just-launched hyprpaper. Confirmed live earlier:
+      # hyprpaper's startup log printed, then `pgrep hyprpaper` came back
+      # empty. KillMode=process only kills the main script PID.
       KillMode = "process";
-      # random-wallpaper itself calls `apply-colors` by bare name -- fine
-      # when Hyprland's own exec_cmd spawns it (inherits the session's
-      # full PATH), but a systemd --user service's PATH is much more
-      # restricted by default and wouldn't otherwise find it (same class
-      # of issue as greetd's PATH fix in configuration.nix).
+      # The scripts call their tools by bare name; a systemd --user
+      # service's default PATH wouldn't find them (same class of issue as
+      # greetd's PATH fix in configuration.nix). WAYLAND_DISPLAY and
+      # HYPRLAND_INSTANCE_SIGNATURE come from hyprland.lua's
+      # `systemctl --user import-environment`.
       Environment = "PATH=${config.home.profileDirectory}/bin:/run/current-system/sw/bin";
-      ExecStart = "${randomWallpaperScript}/bin/random-wallpaper";
+      ExecStart = toString (pkgs.writeShellScript "random-wallpaper-timer" ''
+        random-wallpaper || exit 1
+        pkill -x hyprpaper
+        while pgrep -x hyprpaper >/dev/null; do sleep 0.1; done
+        setsid -f hyprpaper -c "$HOME/.cache/hypr/hyprpaper-runtime.conf" >/dev/null 2>&1
+      '');
     };
   };
 
@@ -713,53 +428,91 @@ in
     executable = true;
   };
   # fastfetch/config.jsonc is deliberately NOT deployed here anymore --
-  # matugen's fastfetch_config template (./hyprland/matugen/) now owns
-  # that file entirely, regenerated on every login/wallpaper change, same
-  # as colors.css/kitty's colors.conf.
+  # matugen's fastfetch template (./hyprland/matugen/) now owns that file
+  # entirely, regenerated on every login/wallpaper change, same as
+  # colors.css/kitty's colors.conf.
 
   # --- Hyprland session ---
+  # Shared with the Arch dotfiles repo (github.com/crosseyedCOBRA/hyprland);
+  # the NixOS-specific differences are commented where they occur.
   # Hyprland 0.55+ defaults to Lua config (hyprlang/.conf is deprecated).
   xdg.configFile."hypr/hyprland.lua".source = ./hyprland/hyprland.lua;
   xdg.configFile."hypr/hyprpaper.conf".source = ./hyprland/hyprpaper.conf;
   xdg.configFile."hypr/hyprlock.conf".source = ./hyprland/hyprlock.conf;
+  xdg.configFile."hypr/pill-border.css".source = ./hyprland/pill-border.css;
   xdg.configFile."waybar/config.jsonc".source = ./hyprland/waybar/config.jsonc;
   xdg.configFile."waybar/shared.jsonc".source = ./hyprland/waybar/shared.jsonc;
-  # waybar/wofi/swaync's style.css @import colors.css (and waybar also
+  # waybar/swaync's style.css @import colors.css (and waybar also
   # pill-border.css) by a "../hypr/..." relative path -- but these files
   # are deployed as symlinks into the Nix store, and GTK's CSS @import
   # resolves relative paths against that symlink's resolved store
-  # location, not ~/.config. Since colors.css/pill-border.css are
-  # deliberately NOT part of that static store tree (matugen overwrites
-  # them at runtime -- see the comment on matugen/templates/colors.css
-  # below), the relative import 404s silently, GTK drops every rule that
-  # references an @define-color from it, and the window renders with no
-  # background at all. Substituting in an absolute path (still derived
-  # from home.homeDirectory, not a hardcoded username) at build time
-  # keeps the portability goal while actually resolving correctly.
+  # location, not ~/.config. colors.css is deliberately NOT part of that
+  # static store tree (matugen overwrites it at runtime), so the relative
+  # import 404s silently, GTK drops every rule that references an
+  # @define-color from it, and the window renders with no background at
+  # all. Substituting in an absolute path (still derived from
+  # home.homeDirectory, not a hardcoded username) at build time keeps the
+  # portability goal while actually resolving correctly. wofi's style.css
+  # is generated by matugen itself now (templates/wofi-style.css), so it's
+  # a real file and isn't deployed here at all.
   xdg.configFile."waybar/style.css".text = builtins.replaceStrings
     [ "../hypr/colors.css" "../hypr/pill-border.css" ]
     [ "${config.home.homeDirectory}/.config/hypr/colors.css" "${config.home.homeDirectory}/.config/hypr/pill-border.css" ]
     (builtins.readFile ./hyprland/waybar/style.css);
-  xdg.configFile."wofi/style.css".text = builtins.replaceStrings
-    [ "../hypr/colors.css" ]
-    [ "${config.home.homeDirectory}/.config/hypr/colors.css" ]
-    (builtins.readFile ./hyprland/wofi/style.css);
   xdg.configFile."wofi/config".source = ./hyprland/wofi/config;
-  # config.toml + the template are versioned; the *generated* colors.css
-  # they produce (~/.config/hypr/colors.css) deliberately isn't deployed
-  # here -- matugen needs to write there at runtime (hyprland.lua's
-  # autostart), and a file this deploys would be a read-only store
-  # symlink matugen couldn't overwrite.
+  # config.toml + the templates are versioned; everything they *generate*
+  # (~/.config/hypr/colors.css, kitty/colors.conf, wofi/style.css,
+  # gtk-{3,4}.0/gtk.css, ...) deliberately isn't deployed here -- matugen
+  # needs to write those at runtime, and a file this deploys would be a
+  # read-only store symlink matugen couldn't overwrite.
   xdg.configFile."matugen/config.toml".source = ./hyprland/matugen/config.toml;
+  # One link per template, not the folder: earlier generations linked them
+  # individually, and home-manager won't replace that real folder with a link.
+  xdg.configFile."matugen/templates/btop.theme".source = ./hyprland/matugen/templates/btop.theme;
   xdg.configFile."matugen/templates/colors.css".source = ./hyprland/matugen/templates/colors.css;
+  xdg.configFile."matugen/templates/colors.sh".source = ./hyprland/matugen/templates/colors.sh;
+  xdg.configFile."matugen/templates/fastfetch.jsonc".source = ./hyprland/matugen/templates/fastfetch.jsonc;
+  xdg.configFile."matugen/templates/gtk3.css".source = ./hyprland/matugen/templates/gtk3.css;
+  xdg.configFile."matugen/templates/gtk4.css".source = ./hyprland/matugen/templates/gtk4.css;
+  xdg.configFile."matugen/templates/hyprlock-colors.conf".source = ./hyprland/matugen/templates/hyprlock-colors.conf;
   xdg.configFile."matugen/templates/kitty-colors.conf".source = ./hyprland/matugen/templates/kitty-colors.conf;
-  xdg.configFile."matugen/templates/fastfetch-config.jsonc".source = ./hyprland/matugen/templates/fastfetch-config.jsonc;
+  xdg.configFile."matugen/templates/starship.toml".source = ./hyprland/matugen/templates/starship.toml;
+  xdg.configFile."matugen/templates/swayosd.css".source = ./hyprland/matugen/templates/swayosd.css;
+  xdg.configFile."matugen/templates/vesktop.theme.css".source = ./hyprland/matugen/templates/vesktop.theme.css;
+  xdg.configFile."matugen/templates/wofi-style.css".source = ./hyprland/matugen/templates/wofi-style.css;
   xdg.configFile."kitty/kitty.conf".source = ./hyprland/kitty/kitty.conf;
   xdg.configFile."swaync/config.json".source = ./hyprland/swaync/config.json;
   xdg.configFile."swaync/style.css".text = builtins.replaceStrings
     [ "../hypr/colors.css" ]
     [ "${config.home.homeDirectory}/.config/hypr/colors.css" ]
     (builtins.readFile ./hyprland/swaync/style.css);
+  # qt6ct.conf points at its color scheme by absolute path.
+  xdg.configFile."qt6ct/qt6ct.conf".text = builtins.replaceStrings
+    [ "/home/mike/" ]
+    [ "${config.home.homeDirectory}/" ]
+    (builtins.readFile ./hyprland/qt6ct/qt6ct.conf);
+  xdg.configFile."qt6ct/colors/breeze-dark.conf".source = ./hyprland/qt6ct/colors/breeze-dark.conf;
+  # The scripts look for wallpapers in ~/.config/wallpapers (on Arch that's
+  # the dotfiles repo's wallpapers/ folder); here it points at the existing
+  # ~/Pictures/wallpapers. Out-of-store, so adding images needs no rebuild.
+  xdg.configFile."wallpapers".source =
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Pictures/wallpapers";
+
+  # Folders matugen renders into but nothing else creates (it won't create
+  # them itself), and Vesktop's theme switched on -- Vesktop rewrites its
+  # own settings.json, so it's merged into rather than deployed.
+  home.activation.hyprlandThemeDirs = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    run mkdir -p "$HOME/.cache/hypr" "$HOME/.config/swayosd" "$HOME/.config/btop/themes" \
+      "$HOME/.config/vesktop/themes" "$HOME/.config/fastfetch"
+    vesk="$HOME/.config/vesktop/settings/settings.json"
+    if [ ! -f "$vesk" ]; then
+      run install -Dm644 ${pkgs.writeText "vesktop-settings.json" "{ \"enabledThemes\": [\"matugen.theme.css\"] }"} "$vesk"
+    elif ! ${pkgs.jq}/bin/jq -e '.enabledThemes // [] | index("matugen.theme.css")' "$vesk" >/dev/null; then
+      tmp=$(mktemp)
+      ${pkgs.jq}/bin/jq '.enabledThemes = ((.enabledThemes // []) + ["matugen.theme.css"] | unique)' "$vesk" > "$tmp" \
+        && run mv "$tmp" "$vesk"
+    fi
+  '';
 
   # Firefox/Zen sandbox its cubeb audio backend into the RDD process by
   # default, which is a well-documented source of intermittent audio

@@ -72,42 +72,42 @@ local menu        = "wofi --show drun"
 -- See https://wiki.hypr.land/Configuring/Basics/Autostart/
 
 -- Autostart necessary processes (like notifications daemons, status bars, etc.)
--- waybar/hyprpaper replace noctalia here to match ./waybar/ and
--- ./hyprpaper.conf. xdg-desktop-portal-hyprland/-gtk are started by
--- NixOS's xdg.portal service activation, not needed here. polkit-agent
--- matches the Awesome session's own autostart (see ../awesome/rc.lua).
+-- xdg-desktop-portal-hyprland/-gtk are D-Bus activated on demand, not
+-- needed here. hyprpolkitagent's systemd user unit comes from home.nix
+-- (services.hyprpolkitagent). waybar isn't listed because apply-colors
+-- launches it (see below).
 --
--- random-wallpaper (../home.nix) picks a random image from
--- ~/Pictures/wallpapers/, writes hyprpaper's runtime config for it, and
--- (now self-contained, see home.nix) launches hyprpaper against that
--- exact config itself and runs matugen + apply-colors -- reused
--- identically by the random-wallpaper-timer systemd unit (also
--- home.nix) every 30 minutes, not just this one-time session-start call.
--- apply-colors is also what wallpaper-picker calls after every manual
--- pick, so all three paths (session start, 30-min timer, manual pick)
--- apply colors identically (waybar launch, kitty reload, Hyprland
--- active-border color, hyprlock background).
+-- random-wallpaper (packaged by home.nix from ./bin/) picks a random image
+-- from ~/.config/wallpapers/ (-> ~/Pictures/wallpapers) every session start, writes hyprpaper's runtime
+-- config for it, and runs matugen + apply-colors against that same pick
+-- -- chained with `&&` into hyprpaper's own launch (pointed at that exact
+-- runtime config, not the static ./hyprpaper.conf) so hyprpaper always
+-- shows the same wallpaper colors were just derived from, no flash of a
+-- different default in between. apply-colors is also what wallpaper-picker
+-- calls after every later manual change, so session-start and live-picked
+-- wallpapers apply colors identically (waybar launch, kitty reload,
+-- Hyprland active-border color, hyprlock background).
 hl.on("hyprland.start", function ()
-  hl.exec_cmd("random-wallpaper")
-  hl.exec_cmd("swaync")
-  hl.exec_cmd("polkit-agent")
-  hl.exec_cmd("swayosd-server") -- volume/brightness OSD backend for the swayosd-client calls below
-  hl.exec_cmd("wl-paste --watch cliphist store") -- feeds clipboard-picker's history (../home.nix)
-  hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
-  hl.exec_cmd("systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE")
+  -- exec_cmd calls run concurrently, so the user services below are
+  -- chained after the environment import they need to find Wayland.
+  --
   -- xdg-desktop-portal.service (and the Hyprland/gtk portal backends) all
-  -- have Requisite=graphical-session.target -- they refuse to even
-  -- attempt starting unless that target is already active. Nothing
-  -- marks it active on its own here (the home-manager Hyprland module
-  -- normally does this automatically, but this config bypasses that
-  -- module for a raw Lua config), which is why screen-capture portals
-  -- (e.g. WFHelper's OCR overlay, or anything else using
-  -- xdg-desktop-portal's ScreenCast interface) failed with "Could not
+  -- have Requisite=graphical-session.target -- they refuse to even start
+  -- unless that target is already active, and nothing marks it active here
+  -- (home-manager's Hyprland module normally would, but this config
+  -- bypasses that module for a raw Lua config). Without it, screen-capture
+  -- portals (WFHelper's OCR overlay, screen sharing) fail with "Could not
   -- activate remote peer 'org.freedesktop.portal.Desktop'". graphical-
-  -- session.target itself refuses direct `systemctl start` (it's
-  -- "requested by dependency only") -- nixos-fake-graphical-session.target
-  -- is NixOS's own sanctioned stand-in for exactly this case.
-  hl.exec_cmd("systemctl --user start nixos-fake-graphical-session.target")
+  -- session.target refuses a direct `systemctl start`;
+  -- nixos-fake-graphical-session.target is NixOS's stand-in for exactly
+  -- this case. hyprpolkitagent is WantedBy that target too, and started
+  -- explicitly anyway in case that ever changes.
+  hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP QT_QPA_PLATFORMTHEME XCURSOR_THEME XCURSOR_SIZE HYPRLAND_INSTANCE_SIGNATURE")
+  hl.exec_cmd("systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP QT_QPA_PLATFORMTHEME XCURSOR_THEME XCURSOR_SIZE HYPRLAND_INSTANCE_SIGNATURE && systemctl --user start nixos-fake-graphical-session.target hyprpolkitagent")
+  hl.exec_cmd("random-wallpaper && hyprpaper -c ~/.cache/hypr/hyprpaper-runtime.conf")
+  hl.exec_cmd("swaync")
+  hl.exec_cmd("swayosd-server") -- volume/brightness OSD backend for the swayosd-client calls below
+  hl.exec_cmd("wl-paste --watch cliphist store") -- feeds clipboard-picker's history (./bin/clipboard-picker)
 end)
 
 
@@ -117,8 +117,27 @@ end)
 
 -- See https://wiki.hypr.land/Configuring/Advanced-and-Cool/Environment-variables/
 
+-- Cursor theme for Hyprland itself and every app it launches. GTK gets the
+-- same theme from ~/.config/gtk-3.0/settings.ini and gsettings; X11/Qt apps
+-- that ignore these fall back to ~/.icons/default/index.theme.
+hl.env("XCURSOR_THEME", "Bibata-Modern-Ice")
 hl.env("XCURSOR_SIZE", "24")
+hl.env("HYPRCURSOR_THEME", "Bibata-Modern-Ice")
 hl.env("HYPRCURSOR_SIZE", "24")
+
+-- Qt apps (Dolphin, hyprpolkitagent) take their style, Breeze Dark colors
+-- and Papirus-Dark icons from ~/.config/qt6ct/qt6ct.conf; KDE apps also
+-- read colors from ~/.config/kdeglobals.
+hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
+
+-- On NixOS the helper scripts (random-wallpaper, wofi-power, ...) come from
+-- home.packages and are already on PATH; this is a harmless leftover from
+-- the Arch config (~/.local/bin), kept so the two stay easy to diff.
+-- Guarded because config reloads re-run this against the already-updated PATH.
+local localBin = os.getenv("HOME") .. "/.local/bin"
+if not (":" .. os.getenv("PATH") .. ":"):find(":" .. localBin .. ":", 1, true) then
+    hl.env("PATH", localBin .. ":" .. os.getenv("PATH"))
+end
 
 
 -----------------------
@@ -240,12 +259,9 @@ hl.animation({ leaf = "zoomFactor",    enabled = true,  speed = 7,    bezier = "
 --     rounding    = 0,
 -- })
 
--- Pin workspaces to specific monitors. Hyprland's own connector names
--- (set above in MONITORS, 1-indexed: DP-1/DP-2/DP-3) differ from the
--- X11 session's xrandr names in configuration.nix (DisplayPort-0/1/2,
--- 0-indexed) -- DP-1 here is the 165Hz primary (== X11's DisplayPort-0),
--- DP-2 is the 144Hz monitor rotated right of it (== DisplayPort-1), DP-3
--- is the 144Hz monitor right of that (== DisplayPort-2). `default = true`
+-- Pin workspaces to specific monitors (connector names as set above in
+-- MONITORS). DP-1 is the 165Hz primary, DP-2 is the 144Hz monitor rotated right
+-- of it, DP-3 is the 144Hz monitor right of that. `default = true`
 -- is which workspace that monitor shows on session start/monitor
 -- reconnect -- exactly one per monitor. `persistent = true` is what lets
 -- waybar's hyprland/workspaces module show all 5 of these (even empty,
@@ -265,8 +281,7 @@ hl.workspace_rule({ workspace = "7", monitor = "DP-1", persistent = true })
 -- .desktop file claims StartupWMClass=Vesktop, capitalized, but the real
 -- runtime class is lowercase "vesktop" -- caught this exact mismatch by
 -- checking live instead of trusting the .desktop file). Steam's "steam"
--- is the well-known standard class, not yet confirmed live on this
--- machine -- double check with `hyprctl clients` once it's actually open.
+-- class is confirmed live too (main window lands on 1 while you stay put).
 -- "silent" (confirmed via Window.cpp: the effect value just needs to
 -- contain that literal word) assigns the window to its workspace without
 -- also jumping your view there -- it opens in the background instead of
@@ -282,18 +297,6 @@ hl.window_rule({ match = { class = "chrome-music.youtube.com__-Default" }, works
 -- is "chrome-<site>__-<profile>", so one regex rule covers all of them,
 -- present and future, rather than needing a rule per webapp.
 hl.window_rule({ match = { class = "^chrome-" }, tile = true })
-
--- wofi (app launcher/power menu/wallpaper picker) turned out to be a
--- regular floating Hyprland client, not a pure layer-shell surface --
--- confirmed live via `hyprctl clients`: class "wofi", floating: true,
--- showing up in the client list at all (layer-shell surfaces don't).
--- That means it was getting Hyprland's own general:col.active_border
--- gradient decoration (accent -> accent2, see apply-colors/home.nix)
--- drawn by the compositor around it, completely independent of
--- ../wofi/style.css -- explains why removing every border from that
--- CSS file never fully got rid of a colored border. border_size = 0
--- kills it at the source instead of continuing to fight it in GTK CSS.
-hl.window_rule({ match = { class = "^wofi$" }, border_size = 0 })
 
 -- See https://wiki.hypr.land/Configuring/Layouts/Dwindle-Layout/ for more
 hl.config({
@@ -375,7 +378,7 @@ local mainMod = "SUPER" -- Sets "Windows" key as main modifier
 hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal))
 local closeWindowBind = hl.bind(mainMod .. " + Q", hl.dsp.window.close())
 -- closeWindowBind:set_enabled(false)
--- hyprshutdown isn't installed/requested; wofi-power (home.nix) is the
+-- hyprshutdown isn't installed/requested; wofi-power (./bin/) is the
 -- same power menu the traditional hyprland.conf used, wofi-based like
 -- the rest of this session.
 hl.bind(mainMod .. " + M", hl.dsp.exec_cmd("wofi-power"))

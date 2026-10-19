@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# wallpaper-picker (Super+W)
+#
+# Thumbnail grid of $WALLPAPER_DIR in wofi. The chosen image is applied via
+# apply-colors, then hyprpaper is restarted on the new runtime config.
+# -W/-H override ~/.config/wofi/config's narrow launcher size for the grid.
+
+set -uo pipefail
+
+# Pressing the bind again while wofi is open closes it.
+# -f, not -x: wofi runs as a wrapper on NixOS (process name .wofi-wrapped).
+pkill -f '(^|/)wofi( |$)' && exit 0
+
+dir=${WALLPAPER_DIR:-$HOME/.config/wallpapers}
+
+choice=$(find -L "$dir" -maxdepth 1 -type f \
+           \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
+           | sort | sed 's/^/img:/' \
+           | wofi --dmenu --allow-images -D image_size=280 --columns 3 \
+                  -W 1000 -H 640 --prompt "Wallpaper") || exit 0
+
+img=${choice#img:}
+[[ -f $img ]] || exit 1
+
+apply-colors "$img" || exit 1
+
+pkill -x hyprpaper
+while pgrep -x hyprpaper >/dev/null; do sleep 0.1; done
+setsid -f hyprpaper -c ~/.cache/hypr/hyprpaper-runtime.conf >/dev/null 2>&1

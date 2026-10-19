@@ -264,7 +264,8 @@ in
     noto-fonts
     noto-fonts-color-emoji
     font-awesome
-    inter # waybar/wofi's font-family (./hyprland/waybar/style.css, ./hyprland/wofi/style.css)
+    inter # waybar/wofi's font-family (./hyprland/waybar/style.css, ./hyprland/matugen/templates/wofi-style.css)
+    adwaita-fonts # GTK/Qt UI font in the Hyprland session (gtk.font in home.nix, ./hyprland/qt6ct/)
   ] ++ lib.attrValues (lib.filterAttrs (_: lib.isDerivation) nerd-fonts);
 
   # --- Printing ---
