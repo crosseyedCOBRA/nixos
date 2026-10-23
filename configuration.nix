@@ -206,7 +206,12 @@ in
     description = "Force power profile to performance on boot";
     after = [ "power-profiles-daemon.service" ];
     requires = [ "power-profiles-daemon.service" ];
-    wantedBy = [ "multi-user.target" ];
+    # graphical.target, not multi-user: since power-profiles-daemon 0.30 its
+    # unit is After=multi-user.target / WantedBy=graphical.target, so running
+    # this before multi-user (what wantedBy multi-user implies) while also
+    # after the daemon is an ordering cycle -- confirmed live: "Transaction
+    # order is cyclic" for power-profiles-daemon.service on switch.
+    wantedBy = [ "graphical.target" ];
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${pkgs.power-profiles-daemon}/bin/powerprofilesctl set performance";
