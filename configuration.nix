@@ -34,6 +34,10 @@ in
   # NixOS's default `linuxPackages` is a conservative pin, not the newest
   # available kernel — use the latest stable release instead.
   boot.kernelPackages = pkgs.linuxPackages_latest;
+  # Here rather than in hardware-configuration.nix: nixos-generate-config
+  # leaves kvm-amd out whenever SVM is off in the BIOS, and regenerating
+  # that file after a reinstall shouldn't quietly drop VM support.
+  boot.kernelModules = [ "kvm-amd" ];
 
   # sched-ext: swap the kernel's default CFS/EEVDF scheduler for a
   # BPF-loaded one. scx_bpfland prioritizes low latency for
@@ -271,6 +275,22 @@ in
   # --- Printing ---
   services.printing.enable = true;
 
+  # --- Virtual machines ---
+  # KVM via libvirt, managed from virt-manager. Needs SVM turned on in the
+  # BIOS (it was off: "SVM disabled (by BIOS) in MSR_VM_CR" in dmesg);
+  # without it libvirt still starts but can only run slow emulated VMs.
+  virtualisation.libvirtd.enable = true;
+  programs.virt-manager.enable = true;
+
+  # --- SSH ---
+  # Agent runs for the whole login session; AddKeysToAgent means the key's
+  # passphrase (if it has one) is asked for once, on first use, not on
+  # every git push.
+  programs.ssh.startAgent = true;
+  programs.ssh.extraConfig = ''
+    AddKeysToAgent yes
+  '';
+
   # --- zram swap ---
   zramSwap.enable = true;
 
@@ -278,7 +298,7 @@ in
   users.users.${username} = {
     isNormalUser = true;
     description = username;
-    extraGroups = [ "wheel" "networkmanager" "video" "audio" "input" ];
+    extraGroups = [ "wheel" "networkmanager" "video" "audio" "input" "libvirtd" ];
     # fish, same as the Arch setup -- its config and the starship prompt are
     # in home.nix (programs.fish / programs.starship).
     shell = pkgs.fish;
@@ -296,6 +316,7 @@ in
     xinit # provides `startx`, tuigreet's default X11 session wrapper (see services.greetd above)
     curl
     git
+    gh
     unzip
     p7zip
     file

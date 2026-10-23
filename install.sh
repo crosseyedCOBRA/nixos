@@ -61,6 +61,13 @@ sudo nixos-rebuild switch --flake "$REPO_DIR#$HOSTNAME"
 echo "==> Done. Log in, then run 'passwd' to set your account password if you haven't already."
 cat <<EOF
     Then, after the first Hyprland login:
+      GitHub SSH key (needed to push, and to commit at all: commits are
+      signed with it, see home.nix's programs.git.signing):
+        ssh-keygen -t ed25519 -C "crosseyedcobra@gmail.com"
+        cat ~/.ssh/id_ed25519.pub
+      Add that key at https://github.com/settings/ssh/new twice, once as an
+      Authentication key and once as a Signing key, then check it with
+        ssh -T git@github.com
       Steam: sign in, let it finish, quit Steam completely, then run
         $REPO_DIR/steam/launch-options restore
       to bring back every game's launch options (gamemoderun mangohud ...)

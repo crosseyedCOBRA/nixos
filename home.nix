@@ -188,6 +188,19 @@ in
       echo
       echo
     '';
+    # rebuild: apply the config in ~/nixos as-is (same pinned versions).
+    # upgrade: bump every flake input in flake.lock (nixpkgs, home-manager,
+    # zen-browser, ...), rebuild with them, then update Flatpak apps too.
+    # nix-flatpak only installs the apps listed in configuration.nix; it
+    # doesn't update them on rebuild, hence the explicit flatpak update.
+    functions = {
+      rebuild = "sudo nixos-rebuild switch --flake ~/nixos#nixos $argv";
+      upgrade = ''
+        nix flake update --flake ~/nixos
+        and rebuild $argv
+        and flatpak update -y
+      '';
+    };
   };
 
   # Prompt. No settings here on purpose: ~/.config/starship.toml is
@@ -202,6 +215,14 @@ in
     settings.user = {
       name = "crosseyedCOBRA";
       email = "crosseyedcobra@gmail.com";
+    };
+    # Signs commits with the GitHub SSH key (install.sh says how to make it).
+    # GitHub only shows them as Verified once the same key is also added there
+    # as a *signing* key, not just an authentication one.
+    signing = {
+      format = "ssh";
+      key = "~/.ssh/id_ed25519.pub";
+      signByDefault = true;
     };
   };
 
