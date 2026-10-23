@@ -10,34 +10,34 @@
 
   boot.initrd.availableKernelModules = [ "nvme" "xhci_pci" "ahci" "usbhid" "sd_mod" ];
   boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [ "kvm-amd" ];
+  boot.kernelModules = [ ];
   boot.extraModulePackages = [ ];
 
   fileSystems."/" =
-    { device = "/dev/disk/by-uuid/420ab845-7dbe-4da3-b9e4-22b4839d807f";
+    { device = "/dev/disk/by-uuid/fd7e8150-8e8e-48d0-a22a-aff643131fb0";
       fsType = "btrfs";
     };
 
   fileSystems."/nix" =
-    { device = "/dev/disk/by-uuid/420ab845-7dbe-4da3-b9e4-22b4839d807f";
+    { device = "/dev/disk/by-uuid/fd7e8150-8e8e-48d0-a22a-aff643131fb0";
       fsType = "btrfs";
       options = [ "subvol=nix" ];
     };
 
   fileSystems."/home" =
-    { device = "/dev/disk/by-uuid/420ab845-7dbe-4da3-b9e4-22b4839d807f";
+    { device = "/dev/disk/by-uuid/fd7e8150-8e8e-48d0-a22a-aff643131fb0";
       fsType = "btrfs";
       options = [ "subvol=home" ];
     };
 
   fileSystems."/boot" =
-    { device = "/dev/disk/by-uuid/1DC2-455D";
+    { device = "/dev/disk/by-uuid/0B63-B1D3";
       fsType = "vfat";
       options = [ "fmask=0077" "dmask=0077" ];
     };
 
   swapDevices =
-    [ { device = "/dev/disk/by-uuid/75638b1f-c07a-48cd-9bdf-43ebfb8b19e1"; }
+    [ { device = "/dev/disk/by-uuid/1765c5c9-d678-42fd-b4e8-d8d4a99ad7d2"; }
     ];
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
