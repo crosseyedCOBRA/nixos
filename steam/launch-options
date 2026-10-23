@@ -2,10 +2,14 @@
 """Export or restore Steam per-game launch options.
 
   launch-options export   write launch-options.json (next to this script)
-  launch-options restore  apply launch-options.json to Steam's localconfig.vdf
+  launch-options restore  apply launch-options.json to Steam's localconfig.vdf,
+                          and force Proton stable on every installed game
 
 Restore needs Steam closed: it rewrites localconfig.vdf on exit, which would
-discard the change. Export only reads, so it works either way. Restore makes
+discard the change (same for config.vdf, which holds the per-game
+compatibility tool). Proton stable is forced per game, not just as the global
+default, because the default only covers Windows-only games: anything with a
+native Linux build (BG3, Total War, ...) would otherwise skip Proton. Export only reads, so it works either way. Restore makes
 a timestamped backup of localconfig.vdf first. The VDF reader/writer below
 round-trips Steam's file byte-for-byte, so only LaunchOptions values change.
 """
@@ -20,6 +24,8 @@ import time
 
 STEAM = os.path.expanduser('~/.local/share/Steam')
 JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'launch-options.json')
+PROTON = 'proton-stable'  # Steam's own name for the "Proton (stable)" choice
+TOOL_NAME = re.compile(r'^(Proton|Steam Linux Runtime|Steamworks Common)')
 TOKEN = re.compile(r'\s*(?:"((?:[^"\\]|\\.)*)"|(\{)|(\}))')
 
 
@@ -97,12 +103,46 @@ def game_names():
     return names
 
 
+def force_proton(appids):
+    path = os.path.join(STEAM, 'config', 'config.vdf')
+    text = open(path, encoding='utf-8').read()
+    tree = parse(text)
+    if dump(tree) != text:
+        sys.exit(f'{path}: parser would not round-trip this file unchanged; not touching it.')
+    node = tree
+    for key in ('InstallConfigStore', 'Software', 'Valve', 'Steam'):
+        node = get(node, key)
+        if node is None:
+            sys.exit('Unexpected config.vdf layout (no Software/Valve/Steam).')
+    mapping = get(node, 'CompatToolMapping')
+    if mapping is None:
+        mapping = []
+        node.append(['CompatToolMapping', mapping])
+    # "0" is the global default; 250 is the priority Steam gives a choice made
+    # in a game's Properties > Compatibility, which beats Valve's own mappings.
+    for appid, priority in [('0', '75')] + [(a, '250') for a in appids]:
+        entry = [['name', PROTON], ['config', ''], ['priority', priority]]
+        existing = [e for e in mapping if e[0] == appid]
+        if existing:
+            existing[0][1] = entry
+        else:
+            mapping.append([appid, entry])
+    shutil.copy2(path, f'{path}.bak-{time.strftime("%Y%m%d-%H%M%S")}')
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(dump(tree))
+    print(f'Set {PROTON} for {len(appids)} games (and as the default) in {path}')
+
+
 def steam_running():
     return subprocess.run(['pgrep', '-x', 'steam'], capture_output=True).returncode == 0
 
 
 def export():
-    names = game_names()
+    # Keep names already on record for games that aren't installed right now.
+    names = {}
+    if os.path.exists(JSON):
+        names = {a: e['name'] for a, e in json.load(open(JSON, encoding='utf-8')).items()}
+    names.update(game_names())
     out = {}
     for path in localconfigs():
         text = open(path, encoding='utf-8').read()
@@ -138,6 +178,8 @@ def restore():
         with open(path, 'w', encoding='utf-8') as f:
             f.write(dump(tree))
         print(f'Restored launch options for {len(wanted)} games in {path}')
+    games = {a for a, n in game_names().items() if not TOOL_NAME.match(n)} | set(wanted)
+    force_proton(sorted(games, key=int))
 
 
 if __name__ == '__main__':

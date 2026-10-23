@@ -63,7 +63,8 @@ cat <<EOF
     Then, after the first Hyprland login:
       Steam: sign in, let it finish, quit Steam completely, then run
         $REPO_DIR/steam/launch-options restore
-      to bring back every game's launch options (gamemoderun mangohud ...).
+      to bring back every game's launch options (gamemoderun mangohud ...)
+      and set every game to Proton stable.
       After changing launch options in Steam, save them back to this repo
       with: $REPO_DIR/steam/launch-options export
 EOF

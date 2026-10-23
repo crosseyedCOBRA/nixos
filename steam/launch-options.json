@@ -35,6 +35,10 @@
     "name": "No Man's Sky",
     "launch_options": "gamemoderun mangohud %command%"
   },
+  "1371980": {
+    "name": "No Rest for the Wicked",
+    "launch_options": "gamemoderun mangohud %command%"
+  },
   "2694490": {
     "name": "Path of Exile 2",
     "launch_options": "gamemoderun mangohud %command%"
