@@ -37,7 +37,10 @@ in
   # Here rather than in hardware-configuration.nix: nixos-generate-config
   # leaves kvm-amd out whenever SVM is off in the BIOS, and regenerating
   # that file after a reinstall shouldn't quietly drop VM support.
-  boot.kernelModules = [ "kvm-amd" ];
+  # ntsync: kernel-side NT sync primitives that Proton 11 / Wine use instead
+  # of esync/fsync when /dev/ntsync exists. Not autoloaded on demand, so it
+  # has to be loaded at boot -- same as the Arch setup's modules-load.d.
+  boot.kernelModules = [ "kvm-amd" "ntsync" ];
 
   # sched-ext: swap the kernel's default CFS/EEVDF scheduler for a
   # BPF-loaded one. scx_bpfland prioritizes low latency for
@@ -84,6 +87,10 @@ in
   };
   services.xserver.videoDrivers = [ "amdgpu" ];
   hardware.amdgpu.overdrive.enable = true; # required for LACT to actually overclock on AMD
+  # The Arch setup's mask: the kernel default plus the overdrive bit. NixOS's
+  # own default (0xfffd7fff) also turns off GFXOFF and stutter mode, which
+  # only costs idle power.
+  hardware.amdgpu.overdrive.ppfeaturemask = "0xfff7ffff";
 
   # LACT: GPU monitoring/overclocking daemon + GUI. Runs as a root systemd
   # service (lactd) since it needs direct sysfs/DRM access; the GUI just
@@ -296,6 +303,52 @@ in
     AddKeysToAgent yes
   '';
 
+  # --- Btrfs snapshots (snapper) ---
+  # Same retention as the Arch setup's /etc/snapper/configs/{root,home}:
+  # hourly timeline snapshots, kept 10 hourly / 10 daily / 10 monthly /
+  # 10 yearly. "/" here is the top-level subvolume, so its snapshots skip
+  # the nested nix and home subvolumes -- /nix is already covered by NixOS
+  # generations, and /home gets its own config. snapper won't create the
+  # .snapshots subvolumes itself; the tmpfiles `v` rules below do.
+  # `sudo snapper -c home list` / `undochange` to get files back.
+  services.snapper.configs =
+    let
+      common = {
+        FSTYPE = "btrfs";
+        SPACE_LIMIT = "0.5";
+        FREE_LIMIT = "0.2";
+        NUMBER_CLEANUP = true;
+        NUMBER_MIN_AGE = 3600;
+        NUMBER_LIMIT = 50;
+        NUMBER_LIMIT_IMPORTANT = 10;
+        TIMELINE_CREATE = true;
+        TIMELINE_CLEANUP = true;
+        TIMELINE_MIN_AGE = 3600;
+        TIMELINE_LIMIT_HOURLY = 10;
+        TIMELINE_LIMIT_DAILY = 10;
+        TIMELINE_LIMIT_WEEKLY = 0;
+        TIMELINE_LIMIT_MONTHLY = 10;
+        TIMELINE_LIMIT_QUARTERLY = 0;
+        TIMELINE_LIMIT_YEARLY = 10;
+        EMPTY_PRE_POST_CLEANUP = true;
+        EMPTY_PRE_POST_MIN_AGE = 3600;
+      };
+    in
+    {
+      root = common // { SUBVOLUME = "/"; };
+      home = common // { SUBVOLUME = "/home"; };
+    };
+  systemd.tmpfiles.rules = [
+    "v /.snapshots 0750 root root -"
+    "v /home/.snapshots 0750 root root -"
+  ];
+  # Monthly checksum scrub of the whole filesystem, so silent corruption
+  # shows up in the journal instead of in a snapshot you try to restore.
+  services.btrfs.autoScrub = {
+    enable = true;
+    fileSystems = [ "/" ];
+  };
+
   # --- zram swap ---
   zramSwap.enable = true;
 
@@ -363,6 +416,12 @@ in
   ];
 
   programs.firefox.enable = true;
+
+  # gdk-pixbuf ships no WebP decoder, so the two .webp wallpapers came up
+  # blank in wallpaper-picker (wofi thumbnails go through gdk-pixbuf). This
+  # builds a loaders.cache with the WebP loader added and points every
+  # GTK app at it via GDK_PIXBUF_MODULE_FILE -- needs a re-login to apply.
+  programs.gdk-pixbuf.modulePackages = [ pkgs.webp-pixbuf-loader ];
 
   # --- Gaming ---
   programs.steam = {
