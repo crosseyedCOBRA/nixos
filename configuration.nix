@@ -444,26 +444,6 @@ in
     # ./hyprland/hyprland.lua), so there's nothing for it to meaningfully
     # need to inhibit in the first place.
     settings.general.inhibit_screensaver = 0;
-    # Pauses the wallpaper timer (home.nix's random-wallpaper-timer) for
-    # as long as any gamemoderun-wrapped game is actually running, since
-    # every installed game already launches through it -- no separate
-    # manual toggle to remember. gamemoded is D-Bus-activated (confirmed:
-    # no persistent gamemoded.service exists to check its running user
-    # against), so its execution context for these scripts isn't
-    # something to assume -- --machine=<user>@ is the standard, safe way
-    # to target a specific user's systemd --user session bus regardless
-    # of whether the caller turns out to already be that user or a more
-    # privileged one.
-    # Confirmed live via journalctl --user -u gamemoded: these run through
-    # /bin/sh with a minimal PATH that doesn't include systemctl at all
-    # ("systemctl: command not found", script exit 127) -- same PATH-
-    # resolution class of bug as greetd/the wallpaper timer's own
-    # apply-colors call earlier. Full store path instead of relying on
-    # PATH.
-    settings.custom = {
-      start = "${pkgs.systemd}/bin/systemctl --user --machine=${username}@ stop random-wallpaper-timer.timer";
-      end = "${pkgs.systemd}/bin/systemctl --user --machine=${username}@ start random-wallpaper-timer.timer";
-    };
   };
   # gamemode's own actual performance tweaks (CPU governor, split-lock
   # mitigation) were failing outright: `pkexec: Not authorized` for

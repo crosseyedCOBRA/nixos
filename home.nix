@@ -427,54 +427,6 @@ in
   # autostart). The Awesome session keeps using polkit-agent above.
   services.hyprpolkitagent.enable = true;
 
-  # Re-randomizes the wallpaper every 30 minutes (Hyprland session only --
-  # PartOf graphical-session.target the same way quickshell is above, so
-  # it doesn't fire outside a live session; paused while gaming, see
-  # programs.gamemode in configuration.nix). random-wallpaper only writes
-  # the runtime config and recolors; hyprpaper has no reload, so it's
-  # restarted here the same way wallpaper-picker does it. NixOS-only for
-  # now -- the Arch setup has no timer.
-  systemd.user.services.random-wallpaper-timer = {
-    Unit = {
-      Description = "Randomize the wallpaper";
-      PartOf = [ "graphical-session.target" ];
-      After = [ "graphical-session.target" ];
-    };
-    Service = {
-      Type = "oneshot";
-      # KillMode=process (not the default control-group): hyprpaper (and
-      # waybar/swayosd-server, if apply-colors had to start them) are
-      # setsid'd into the background before the script exits, but that
-      # doesn't take them out of the service's cgroup -- with the default
-      # KillMode, systemd kills everything left in it the moment the oneshot
-      # exits, including the just-launched hyprpaper. Confirmed live earlier:
-      # hyprpaper's startup log printed, then `pgrep hyprpaper` came back
-      # empty. KillMode=process only kills the main script PID.
-      KillMode = "process";
-      # The scripts call their tools by bare name; a systemd --user
-      # service's default PATH wouldn't find them (same class of issue as
-      # greetd's PATH fix in configuration.nix). WAYLAND_DISPLAY and
-      # HYPRLAND_INSTANCE_SIGNATURE come from hyprland.lua's
-      # `systemctl --user import-environment`.
-      Environment = "PATH=${config.home.profileDirectory}/bin:/run/current-system/sw/bin";
-      ExecStart = toString (pkgs.writeShellScript "random-wallpaper-timer" ''
-        random-wallpaper || exit 1
-        pkill -x hyprpaper
-        while pgrep -x hyprpaper >/dev/null; do sleep 0.1; done
-        setsid -f hyprpaper -c "$HOME/.cache/hypr/hyprpaper-runtime.conf" >/dev/null 2>&1
-      '');
-    };
-  };
-
-  systemd.user.timers.random-wallpaper-timer = {
-    Unit.Description = "Randomize the wallpaper every 30 minutes";
-    Timer = {
-      OnUnitActiveSec = "30min";
-      OnStartupSec = "30min";
-    };
-    Install.WantedBy = [ "timers.target" ];
-  };
-
   xdg.enable = true;
   xdg.configFile."quickshell/shell.qml".source = ./quickshell/shell.qml;
   xdg.configFile."quickshell/nix-snowflake-white.svg".source = ./assets/nix-snowflake-white.svg;
