@@ -125,7 +125,14 @@ in
       # OBS), so swap whatever is there for ours.
       saved=$(sed -E 's/([?&])chroma=[^&#]*(&|$)/\1/; s/[?&]$//' <<<"$saved")
       saved+="&chroma=2B2B2B"
-      [[ $profile == stream-alerts ]] && saved+="&showonlyevents"
+      # The two windows split the session between them: alerts gets only
+      # events, chat gets everything but events. Both dock filters key off
+      # the same data.event field, so nothing shows in both or in neither.
+      if [[ $profile == stream-alerts ]]; then
+        saved+="&showonlyevents"
+      else
+        saved+="&hideallevents"
+      fi
       exec ${chromium}/bin/chromium \
         --user-data-dir="''${XDG_DATA_HOME:-$HOME/.local/share}/$profile" \
         --app="$saved"
@@ -477,7 +484,7 @@ in
   xdg.desktopEntries.stream-chat = {
     name = "Stream Chat";
     genericName = "Social Stream Ninja dock";
-    comment = "Combined chat and follow/sub/raid alerts from the streaming PC";
+    comment = "Combined chat from the stream (alerts are in Stream Alerts)";
     exec = "stream-chat";
     icon = "internet-chat";
     categories = [ "Network" "Chat" ];
