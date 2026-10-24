@@ -391,7 +391,6 @@ in
     xdg-user-dirs
     gnome-calculator
     vscodium
-    inputs.zen-browser.packages.${pkgs.system}.default # beta channel
 
     # swayosd: volume/brightness OSD (see hyprland.lua's XF86Audio*/
     # XF86MonBrightness* binds). Installed system-wide (not just via
@@ -495,6 +494,7 @@ in
 
   # --- Flatpak apps (declarative via nix-flatpak) ---
   services.flatpak.packages = [
+    "app.zen_browser.zen" # Zen browser (Flatpak since 2026-10; was the zen-browser flake)
     "org.pvermeer.WebAppHub" # web app installer
     "eu.betterbird.Betterbird" #email client
     "com.chatterino.chatterino" #chatterino

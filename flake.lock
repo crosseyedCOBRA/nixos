@@ -127,8 +127,7 @@
         "nix-flatpak": "nix-flatpak",
         "nixpkgs": "nixpkgs",
         "quickshell": "quickshell",
-        "xlibre-overlay": "xlibre-overlay",
-        "zen-browser": "zen-browser"
+        "xlibre-overlay": "xlibre-overlay"
       }
     },
     "xlibre-overlay": {
@@ -151,29 +150,6 @@
         "ref": "dev-26.11",
         "type": "git",
         "url": "https://codeberg.org/takagemacoed/xlibre-overlay"
-      }
-    },
-    "zen-browser": {
-      "inputs": {
-        "home-manager": [
-          "home-manager"
-        ],
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1792595242,
-        "narHash": "sha256-kH/E0uJDslOgYcnmU+c0cm6HrUjsEtvZQKZtuQ1+uvo=",
-        "owner": "0xc000022070",
-        "repo": "zen-browser-flake",
-        "rev": "f19490ac889eabb05bdb7e8dcb85225ee75bd87b",
-        "type": "github"
-      },
-      "original": {
-        "owner": "0xc000022070",
-        "repo": "zen-browser-flake",
-        "type": "github"
       }
     }
   },
