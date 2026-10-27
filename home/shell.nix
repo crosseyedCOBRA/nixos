@@ -22,12 +22,48 @@
     # quickshell, ...), rebuild with them, then update Flatpak apps too.
     # nix-flatpak only installs the apps listed in ../modules/packages.nix; it
     # doesn't update them on rebuild, hence the explicit flatpak update.
+    # prune-snapshots [count]: show the oldest snapper snapshots (default 5)
+    # of each config in ../modules/storage.nix and delete them only after a
+    # y at the prompt. The newest 5 are always kept whatever the count, and
+    # snapshot 0 is the live system, never a candidate.
     functions = {
       rebuild = "sudo nixos-rebuild switch --flake ~/nixos#nixos $argv";
       upgrade = ''
         nix flake update --flake ~/nixos
         and rebuild $argv
         and flatpak update -y
+      '';
+      prune-snapshots = ''
+        set -l count 5
+        if set -q argv[1]
+            if not string match -qr '^[1-9][0-9]*$' -- $argv[1]
+                echo "usage: prune-snapshots [count]   (default 5)" >&2
+                return 1
+            end
+            set count $argv[1]
+        end
+        sudo -v; or return 1
+
+        for config in root home
+            set -l all (sudo snapper --csvout --no-headers --separator '|' -c $config list --columns number,date,description | string match -rv '^0\|')
+            set -l max (math (count $all) - 5)
+            if test $max -le 0
+                echo "$config: only "(count $all)" snapshots, keeping the newest 5"
+                continue
+            end
+            set -l rows $all[1..(math "min($count, $max)")]
+            echo "$config: oldest "(count $rows)" snapshots"
+            for row in $rows
+                printf '  #%-5s %s  %s\n' (string split -m 2 '|' -- $row)
+            end
+            read -l -P "Delete these $config snapshots? [y/N] " reply
+            if string match -qi y -- $reply
+                sudo snapper -c $config delete (string split -f 1 '|' -- $rows)
+                and echo "$config: deleted"
+            else
+                echo "$config: skipped"
+            end
+        end
       '';
     };
   };
