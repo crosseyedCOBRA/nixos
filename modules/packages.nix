@@ -39,7 +39,6 @@ in
     dmidecode # RAM/BIOS hardware info -- needs root, hence a system package
     chromium
     brave
-    floorp-bin
     vivaldi
     firefox
     protonhax
