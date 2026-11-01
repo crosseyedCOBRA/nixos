@@ -48,6 +48,7 @@ in
     vesktop
     xdg-user-dirs
     gnome-calculator
+    loupe # image viewer, default for image/* via ~/.config/mimeapps.list
     vscodium
 
     # swayosd: volume/brightness OSD (see hyprland.lua's XF86Audio*/
