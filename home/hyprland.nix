@@ -19,6 +19,7 @@ in
     waybar
     hyprpaper
     hyprlock
+    hypridle # monitor timeout while locked only, see ../hyprland/bin/hyprlock-timeout
     matugen # wallpaper -> ~/.config/hypr/colors.css, see ../hyprland/matugen/
     swaynotificationcenter # notification daemon, no Wayland/layer-shell support in dunst (Awesome's daemon)
     grim # screenshot capture, see ../hyprland/bin/screenshot-region
@@ -48,6 +49,7 @@ in
   xdg.configFile."hypr/hyprland.lua".source = ../hyprland/hyprland.lua;
   xdg.configFile."hypr/hyprpaper.conf".source = ../hyprland/hyprpaper.conf;
   xdg.configFile."hypr/hyprlock.conf".source = ../hyprland/hyprlock.conf;
+  xdg.configFile."hypr/hypridle-locked.conf".source = ../hyprland/hypridle-locked.conf;
   xdg.configFile."hypr/pill-border.css".source = ../hyprland/pill-border.css;
   xdg.configFile."waybar/config.jsonc".source = ../hyprland/waybar/config.jsonc;
   xdg.configFile."waybar/shared.jsonc".source = ../hyprland/waybar/shared.jsonc;

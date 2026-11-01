@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
 # hyprlock-timeout (Super+L, wofi-power's Lock)
 #
-# Locks the session with hyprlock. Deliberately nothing else: no hypridle,
-# no idle timer, no DPMS -- the screen only locks when asked to and never
-# blanks or times out on its own.
+# Locks the session with hyprlock, and only for as long as it's locked runs
+# hypridle with ~/.config/hypr/hypridle-locked.conf, which turns the
+# monitors off after a minute without input. There's no hypridle the rest
+# of the time: unlocked, the screens never blank or time out on their own.
 
 pgrep -x hyprlock >/dev/null && exit 0
-exec hyprlock
+
+hypridle -c ~/.config/hypr/hypridle-locked.conf >/dev/null 2>&1 &
+idle=$!
+
+hyprlock
+
+kill "$idle" 2>/dev/null
+# Unlocking needs a keypress, which already woke the monitors -- this just
+# covers hyprlock exiting some other way while they were off.
+hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null
