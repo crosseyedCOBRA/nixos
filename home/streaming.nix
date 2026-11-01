@@ -1,30 +1,21 @@
-# Stream Chat / Stream Alerts: Social Stream Ninja's dock as app windows.
+# Stream Chat (Social Stream Ninja's dock) and Stream Alerts (Streamlabs'
+# Recent Events) as app windows.
 { pkgs, ... }:
 
 {
   home.packages = with pkgs; [
-    # Social Stream Ninja's dock (combined chat + follow/sub/raid alerts) as
-    # its own window. Only views the session; the Social Stream app or
+    # Social Stream Ninja's dock as its own window, chat only. Only views the session; the Social Stream app or
     # extension that logs into the platforms (the "source") runs elsewhere.
     # The dock link (or bare session ID) is read from
     # ~/.config/stream-chat/session, not kept in this (public) repo -- anyone
     # with it can read and post to the dock. A pasted link is kept whole,
     # since it can carry more than the session (e.g. &password=... when the
     # source has a session password set). First launch asks for it;
-    # `stream-chat --reset` asks again. `stream-chat --alerts` opens the
-    # same session with the dock's own &showonlyevents filter, so follows/
-    # subs/raids/bits get a window of their own instead of scrolling past in
-    # chat. Each window has its own Chromium profile, so they don't share
-    # dock settings with each other or state with normal browsing.
+    # `stream-chat --reset` asks again. Its own Chromium profile, so it
+    # shares no state with normal browsing.
     (writeShellScriptBin "stream-chat" ''
       file="''${XDG_CONFIG_HOME:-$HOME/.config}/stream-chat/session"
-      profile=stream-chat
-      for arg; do
-        case $arg in
-          --reset) rm -f "$file" ;;
-          --alerts) profile=stream-alerts ;;
-        esac
-      done
+      [[ ''${1:-} == --reset ]] && rm -f "$file"
       if [[ ! -s $file ]]; then
         input=$(wofi --dmenu --prompt "Dock link or session ID" -L 1 </dev/null) || exit 0
         input=''${input//[[:space:]]/}
@@ -43,17 +34,23 @@
       # OBS), so swap whatever is there for ours.
       saved=$(sed -E 's/([?&])chroma=[^&#]*(&|$)/\1/; s/[?&]$//' <<<"$saved")
       saved+="&chroma=2B2B2B"
-      # The two windows split the session between them: alerts gets only
-      # events, chat gets everything but events. Both dock filters key off
-      # the same data.event field, so nothing shows in both or in neither.
-      if [[ $profile == stream-alerts ]]; then
-        saved+="&showonlyevents"
-      else
-        saved+="&hideallevents"
-      fi
+      # Follows/subs/raids are Stream Alerts' job (below), so keep them out
+      # of the chat.
+      saved+="&hideallevents"
       exec ${chromium}/bin/chromium \
-        --user-data-dir="''${XDG_DATA_HOME:-$HOME/.local/share}/$profile" \
+        --user-data-dir="''${XDG_DATA_HOME:-$HOME/.local/share}/stream-chat" \
         --app="$saved"
+    '')
+
+    # Streamlabs' Recent Events feed (follows, subs, raids, bits, donations)
+    # as its own window: a list that stays put, unlike the on-stream alert
+    # box. It's a dashboard page behind the Streamlabs login rather than a
+    # token URL, so there's nothing secret to keep out of the repo -- log in
+    # once in the window and its Chromium profile keeps the session.
+    (writeShellScriptBin "stream-alerts" ''
+      exec ${chromium}/bin/chromium \
+        --user-data-dir="''${XDG_DATA_HOME:-$HOME/.local/share}/stream-alerts" \
+        --app=https://streamlabs.com/dashboard/recent-events
     '')
   ];
 
@@ -71,9 +68,9 @@
   };
   xdg.desktopEntries.stream-alerts = {
     name = "Stream Alerts";
-    genericName = "Social Stream Ninja alerts";
-    comment = "Only follows, subs, raids, bits and donations from the stream";
-    exec = "stream-chat --alerts";
+    genericName = "Streamlabs Recent Events";
+    comment = "Follows, subs, raids, bits and donations from the stream";
+    exec = "stream-alerts";
     icon = "notification-active";
     categories = [ "Network" "Chat" ];
   };
