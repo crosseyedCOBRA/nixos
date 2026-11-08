@@ -1,0 +1,11 @@
+{
+  "bg": "{{colors.surface.default.hex}}",
+  "surface": "{{colors.surface_container.default.hex}}",
+  "surface_alt": "{{colors.surface_container_high.default.hex}}",
+  "outline": "{{colors.outline_variant.default.hex}}",
+  "text": "{{colors.on_surface.default.hex}}",
+  "muted": "{{colors.outline.default.hex}}",
+  "accent": "{{colors.primary.default.hex}}",
+  "accent2": "{{colors.tertiary.default.hex}}",
+  "urgent": "{{colors.error.default.hex}}"
+}

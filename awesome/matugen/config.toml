@@ -1,0 +1,40 @@
+# matugen config for the Awesome session's own templates -- run by
+# awesome-colors (../bin/awesome-colors) right after the shared config
+# (../../hyprland/matugen/config.toml), which already covers GTK, kitty,
+# starship, btop, Vesktop, ... for both sessions. Same image, same colors.
+
+[config]
+
+# Same fixed terminal hues as the shared config, for alacritty's palette
+# (templates/alacritty-colors.toml).
+[config.custom_colors]
+red = { color = "#e05561", blend = true }
+green = { color = "#8cc265", blend = true }
+yellow = { color = "#d8a657", blend = true }
+blue = { color = "#4aa5f0", blend = true }
+magenta = { color = "#c162de", blend = true }
+cyan = { color = "#42b3c2", blend = true }
+
+[templates.awesome]
+input_path = "~/.config/matugen/awesome/templates/colors.lua"
+output_path = "~/.cache/awesome/colors.lua"
+
+[templates.quickshell]
+input_path = "~/.config/matugen/awesome/templates/colors.json"
+output_path = "~/.cache/awesome/colors.json"
+
+[templates.rofi]
+input_path = "~/.config/matugen/awesome/templates/rofi-colors.rasi"
+output_path = "~/.cache/awesome/rofi-colors.rasi"
+
+[templates.dunst]
+input_path = "~/.config/matugen/awesome/templates/dunst-colors.conf"
+output_path = "~/.config/dunst/dunstrc.d/50-colors.conf"
+
+[templates.alacritty]
+input_path = "~/.config/matugen/awesome/templates/alacritty-colors.toml"
+output_path = "~/.config/alacritty/colors.toml"
+
+[templates.i3lock]
+input_path = "~/.config/matugen/awesome/templates/i3lock-colors.sh"
+output_path = "~/.cache/awesome/i3lock-colors.sh"

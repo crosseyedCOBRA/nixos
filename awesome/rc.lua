@@ -11,7 +11,11 @@ local wibox = require("wibox")
 -- Theme handling library
 local beautiful = require("beautiful")
 local dpi = require("beautiful.xresources").apply_dpi
--- Notification library
+-- Notification library. Its D-Bus notification server is kept from loading:
+-- it would take org.freedesktop.Notifications from dunst, which does this
+-- session's notifications (popups with level bars, Super+N history).
+-- naughty.notify() below still draws Awesome's own popups.
+package.loaded["naughty.dbus"] = {}
 local naughty = require("naughty")
 local menubar = require("menubar")
 local hotkeys_popup = require("awful.hotkeys_popup")
@@ -109,17 +113,16 @@ menubar.utils.terminal = terminal -- Set the terminal for applications that requ
 -- tag-state export below and the quickshell.service trigger further down).
 -- theme.lua still covers window borders/titlebars.
 
--- Same monitor layout as the i3 setup (keep both in sync): DisplayPort-0
+-- Monitor layout: DisplayPort-0
 -- primary at 165Hz; DisplayPort-1 rotated 90° right at 144Hz, to the right
 -- of DP-0; DisplayPort-2 further right (of rotated DP-1) at 144Hz.
 -- HDMI-A-0 (mirrors DisplayPort-0, native 4K) stays off by default —
 -- mirroring it had a real performance cost — and is toggled on/off via
 -- Mod+d (the `toggle-hdmi` script).
--- Re-applied here (rather than relying solely on system-level
--- setupCommands) because at greeter/X-startup time the DisplayPort outputs
--- haven't always finished link-training their custom high-refresh modes
--- yet, which silently fails setupCommands. By the time Awesome starts, the
--- outputs are reliably settled.
+-- Set here, not by the display manager's xrandr hook (setupCommands):
+-- greetd/startx never runs that, and by the time Awesome starts the
+-- DisplayPort outputs have reliably finished link-training their
+-- high-refresh modes.
 awful.spawn.with_shell(
     "xrandr" ..
     " --output DisplayPort-0 --mode 1920x1080 --rate 165 --pos 0x0 --rotate normal --primary" ..
@@ -128,19 +131,23 @@ awful.spawn.with_shell(
     " --output HDMI-A-0 --off"
 )
 
--- Polkit authentication agent, so privileged GUI actions (mounting drives,
--- NetworkManager, etc.) get a password prompt instead of silently failing.
--- (Harmless if the "xfce+awesome" session's own agent is also running.)
-awful.spawn("polkit-agent")
+-- The polkit authentication agent (password prompts for mounting drives,
+-- NetworkManager, ...) isn't started here: polkit_gnome's own XDG autostart
+-- entry already runs it in this session.
 
--- OpenRGB is set to start minimized (to tray) in its own settings, so just
--- launching it here is enough to keep it out of the way.
-awful.spawn("openrgb")
+-- OpenRGB in the tray only: --startminimized keeps its window from opening
+-- on every login.
+awful.spawn("openrgb --startminimized")
 
 -- Screens should never blank/DPMS off just from being idle -- only the
--- lock-screen script (home.nix) re-enables DPMS, for exactly as long as
--- the session is locked.
+-- lock-screen script (./bin/lock-screen) re-enables DPMS, for exactly as
+-- long as the session is locked.
 awful.spawn.with_shell("xset s off -dpms")
+
+-- A random wallpaper from ~/.config/wallpapers each login, with colors to
+-- match, like Hyprland's random-wallpaper. Only once per login: restarting
+-- Awesome (Super+Ctrl+R) keeps the current one. Super+W picks another.
+awful.spawn("awesome-colors --random-once")
 
 local function set_wallpaper(s)
     -- Wallpaper
@@ -161,6 +168,17 @@ end
 
 -- Re-set wallpaper when a screen's geometry changes (e.g. different resolution)
 screen.connect_signal("property::geometry", set_wallpaper)
+
+-- Called by awesome-colors (via awesome-client) after it renders new colors
+-- from a wallpaper: re-reads theme.lua, which picks up the new colors and
+-- wallpaper, then repaints what already exists with them.
+function awesome_apply_theme()
+    beautiful.init(os.getenv("HOME") .. "/.config/awesome/theme.lua")
+    for s in screen do set_wallpaper(s) end
+    for _, c in ipairs(client.get()) do
+        c.border_color = c == client.focus and beautiful.border_focus or beautiful.border_normal
+    end
+end
 
 awful.screen.connect_for_each_screen(function(s)
     -- Wallpaper
@@ -212,6 +230,45 @@ tag.connect_signal("property::layout", dump_tags_state)
 dump_tags_state()
 -- }}}
 
+-- {{{ Scratchpad (Super+S shows/hides it, Super+Shift+S moves a window in/out)
+-- Awesome's stand-in for Hyprland's special workspace: windows sent here are
+-- hidden until Super+S brings them up floating over the current screen, and
+-- Super+S again puts them away. Super+Shift+S on a scratchpad window returns
+-- it to normal tiling.
+local scratchpad = setmetatable({}, { __mode = "k" })
+local scratchpad_shown = false
+
+local function scratchpad_show(c)
+    local s = awful.screen.focused()
+    c:move_to_screen(s)
+    c:move_to_tag(s.selected_tag)
+    c.floating = true
+    c.ontop = true
+    c.hidden = false
+    c:geometry({ width = s.workarea.width * 0.6, height = s.workarea.height * 0.6 })
+    awful.placement.centered(c, { honor_workarea = true })
+    c:emit_signal("request::activate", "scratchpad", { raise = true })
+end
+
+function scratchpad_toggle()
+    scratchpad_shown = not scratchpad_shown
+    for c in pairs(scratchpad) do
+        if scratchpad_shown then scratchpad_show(c) else c.hidden = true end
+    end
+end
+
+function scratchpad_move(c)
+    if scratchpad[c] then
+        scratchpad[c] = nil
+        c.ontop = false
+        c.floating = false
+    else
+        scratchpad[c] = true
+        if scratchpad_shown then scratchpad_show(c) else c.hidden = true end
+    end
+end
+-- }}}
+
 -- {{{ Layout-change notification
 -- Popped up on the tag's own screen so switching layout on one monitor
 -- doesn't show a notification on another. Only for the screen's
@@ -230,25 +287,49 @@ tag.connect_signal("property::layout", function(t)
 end)
 -- }}}
 
--- Only in the standalone Awesome session (not the "xfce+awesome" hybrid,
--- which uses the XFCE panel instead): (re)start quickshell as this
--- session's bar now that Awesome's own wibar has been retired.
-if os.getenv("DESKTOP_SESSION") == "none+awesome" then
-    awful.spawn.with_shell("systemctl --user restart quickshell.service")
-end
+-- This session's user services: quickshell (the bar), picom, dunst and
+-- clipmenud (clipboard history for Super+C).
+-- None of them hang off graphical-session.target, which Hyprland reaches
+-- too. Hyprland's variables are dropped from the systemd environment first,
+-- in case it ran earlier this boot: a leftover WAYLAND_DISPLAY would point
+-- Qt (quickshell) at a compositor that's gone.
+awful.spawn.with_shell(
+    "systemctl --user unset-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP;" ..
+    " systemctl --user start picom.service dunst.service clipmenu.service;" ..
+    " systemctl --user restart quickshell.service"
+)
 
 -- {{{ Mouse bindings
 root.buttons(gears.table.join(
     awful.button({ }, 3, function () mymainmenu:toggle() end),
     awful.button({ }, 4, awful.tag.viewnext),
-    awful.button({ }, 5, awful.tag.viewprev)
+    awful.button({ }, 5, awful.tag.viewprev),
+    -- Super+scroll anywhere (see clientbuttons too), like Hyprland's.
+    awful.button({ modkey }, 4, awful.tag.viewprev),
+    awful.button({ modkey }, 5, awful.tag.viewnext)
 ))
 -- }}}
 
 -- {{{ Key bindings
+-- Super+M/N/L/W/S/C do what they do in Hyprland (power menu, notifications,
+-- lock, wallpaper, scratchpad, clipboard). The stock Awesome actions they
+-- displaced moved: help to Super+F1, main menu to Super+Shift+W, master
+-- width to Super+Alt+H/L, minimize to Super+Shift+N, maximize to
+-- Super+Shift+M.
 globalkeys = gears.table.join(
-    awful.key({ modkey,           }, "s",      hotkeys_popup.show_help,
+    awful.key({ modkey,           }, "F1",     hotkeys_popup.show_help,
               {description="show help", group="awesome"}),
+
+    awful.key({ modkey,           }, "m", function () awful.spawn("power-menu") end,
+              {description = "power menu", group = "awesome"}),
+    awful.key({ modkey,           }, "n", function () awful.spawn("notification-history") end,
+              {description = "notification history", group = "awesome"}),
+    awful.key({ modkey,           }, "w", function () awful.spawn("awesome-wallpaper-picker") end,
+              {description = "pick wallpaper", group = "awesome"}),
+    awful.key({ modkey,           }, "c", function () awful.spawn("clipmenu") end,
+              {description = "clipboard history", group = "launcher"}),
+    awful.key({ modkey,           }, "s", function () scratchpad_toggle() end,
+              {description = "show/hide scratchpad", group = "client"}),
     awful.key({ modkey,           }, "Escape", awful.tag.history.restore,
               {description = "go back", group = "tag"}),
 
@@ -295,9 +376,11 @@ globalkeys = gears.table.join(
     awful.key({ modkey,           }, "d", function () awful.spawn("toggle-hdmi") end,
               {description = "toggle HDMI monitor", group = "screen"}),
 
-    -- Lock screen (matches the i3 setup). Runs the lock-screen wrapper
-    -- (home.nix), not bare i3lock, so DPMS turns on only for the
-    -- duration of the lock -- see the dpms-off spawn below.
+    -- Lock screen: Super+L like Hyprland, Super+Shift+X like the old i3
+    -- setup. Runs ./bin/lock-screen, not bare i3lock, so DPMS turns on only
+    -- for the duration of the lock -- see the dpms-off spawn above.
+    awful.key({ modkey,           }, "l", function () awful.spawn("lock-screen") end,
+              {description = "lock screen", group = "awesome"}),
     awful.key({ modkey, "Shift"   }, "x", function () awful.spawn("lock-screen") end,
               {description = "lock screen", group = "awesome"}),
 
@@ -305,18 +388,23 @@ globalkeys = gears.table.join(
     awful.key({ }, "Print", function () awful.spawn("flameshot gui") end,
               {description = "screenshot", group = "launcher"}),
 
-    -- Media keys (matches the i3 setup)
-    awful.key({ }, "XF86AudioRaiseVolume", function () awful.spawn("pactl set-sink-volume @DEFAULT_SINK@ +5%") end,
+    -- Media keys. Volume, mic and brightness go through ./bin/awesome-osd,
+    -- which also shows the new level in a popup (Hyprland's swayosd).
+    awful.key({ }, "XF86AudioRaiseVolume", function () awful.spawn("awesome-osd volume-up") end,
               {description = "raise volume", group = "media"}),
-    awful.key({ }, "XF86AudioLowerVolume", function () awful.spawn("pactl set-sink-volume @DEFAULT_SINK@ -5%") end,
+    awful.key({ }, "XF86AudioLowerVolume", function () awful.spawn("awesome-osd volume-down") end,
               {description = "lower volume", group = "media"}),
-    awful.key({ }, "XF86AudioMute", function () awful.spawn("pactl set-sink-mute @DEFAULT_SINK@ toggle") end,
+    awful.key({ }, "XF86AudioMute", function () awful.spawn("awesome-osd volume-mute") end,
               {description = "mute", group = "media"}),
-    awful.key({ }, "XF86MonBrightnessUp", function () awful.spawn("brightnessctl set +5%") end,
+    awful.key({ }, "XF86AudioMicMute", function () awful.spawn("awesome-osd mic-mute") end,
+              {description = "mute microphone", group = "media"}),
+    awful.key({ }, "XF86MonBrightnessUp", function () awful.spawn("awesome-osd brightness-up") end,
               {description = "brightness up", group = "media"}),
-    awful.key({ }, "XF86MonBrightnessDown", function () awful.spawn("brightnessctl set 5%-") end,
+    awful.key({ }, "XF86MonBrightnessDown", function () awful.spawn("awesome-osd brightness-down") end,
               {description = "brightness down", group = "media"}),
     awful.key({ }, "XF86AudioPlay", function () awful.spawn("playerctl play-pause") end,
+              {description = "play/pause", group = "media"}),
+    awful.key({ }, "XF86AudioPause", function () awful.spawn("playerctl play-pause") end,
               {description = "play/pause", group = "media"}),
     awful.key({ }, "XF86AudioNext", function () awful.spawn("playerctl next") end,
               {description = "next track", group = "media"}),
@@ -335,7 +423,7 @@ globalkeys = gears.table.join(
         end,
         {description = "focus previous by index", group = "client"}
     ),
-    awful.key({ modkey,           }, "w", function () mymainmenu:show() end,
+    awful.key({ modkey, "Shift"   }, "w", function () mymainmenu:show() end,
               {description = "show main menu", group = "awesome"}),
 
     -- Layout manipulation
@@ -366,9 +454,9 @@ globalkeys = gears.table.join(
     awful.key({ modkey, "Shift"   }, "q", awesome.quit,
               {description = "quit awesome", group = "awesome"}),
 
-    awful.key({ modkey,           }, "l",     function () awful.tag.incmwfact( 0.05)          end,
+    awful.key({ modkey, "Mod1"    }, "l",     function () awful.tag.incmwfact( 0.05)          end,
               {description = "increase master width factor", group = "layout"}),
-    awful.key({ modkey,           }, "h",     function () awful.tag.incmwfact(-0.05)          end,
+    awful.key({ modkey, "Mod1"    }, "h",     function () awful.tag.incmwfact(-0.05)          end,
               {description = "decrease master width factor", group = "layout"}),
     awful.key({ modkey, "Shift"   }, "h",     function () awful.tag.incnmaster( 1, nil, true) end,
               {description = "increase the number of master clients", group = "layout"}),
@@ -435,14 +523,16 @@ clientkeys = gears.table.join(
               {description = "move to screen", group = "client"}),
     awful.key({ modkey,           }, "t",      function (c) c.ontop = not c.ontop            end,
               {description = "toggle keep on top", group = "client"}),
-    awful.key({ modkey,           }, "n",
+    awful.key({ modkey, "Shift"   }, "s",      function (c) scratchpad_move(c)               end,
+              {description = "move to/from scratchpad", group = "client"}),
+    awful.key({ modkey, "Shift"   }, "n",
         function (c)
             -- The client currently has the input focus, so it cannot be
             -- minimized, since minimized clients can't have the focus.
             c.minimized = true
         end ,
         {description = "minimize", group = "client"}),
-    awful.key({ modkey,           }, "m",
+    awful.key({ modkey, "Shift"   }, "m",
         function (c)
             c.maximized = not c.maximized
             c:raise()
@@ -454,7 +544,7 @@ clientkeys = gears.table.join(
             c:raise()
         end ,
         {description = "(un)maximize vertically", group = "client"}),
-    awful.key({ modkey, "Shift"   }, "m",
+    awful.key({ modkey, "Control", "Shift" }, "m",
         function (c)
             c.maximized_horizontal = not c.maximized_horizontal
             c:raise()
@@ -523,7 +613,10 @@ clientbuttons = gears.table.join(
     awful.button({ modkey }, 3, function (c)
         c:emit_signal("request::activate", "mouse_click", {raise = true})
         awful.mouse.client.resize(c)
-    end)
+    end),
+    -- Super+scroll over a window switches workspaces, like Hyprland's.
+    awful.button({ modkey }, 4, function () awful.tag.viewprev() end),
+    awful.button({ modkey }, 5, function () awful.tag.viewnext() end)
 )
 
 -- Set keys
@@ -531,6 +624,15 @@ root.keys(globalkeys)
 -- }}}
 
 -- {{{ Rules
+-- The screen showing a given xrandr output (screen numbers don't follow
+-- the monitor layout), or the primary one if it isn't connected.
+local function output_screen(name)
+    for s in screen do
+        if s.outputs[name] then return s end
+    end
+    return screen.primary
+end
+
 -- Rules to apply to new clients (through the "manage" signal).
 awful.rules.rules = {
     -- All clients will match this rule.
@@ -600,8 +702,28 @@ awful.rules.rules = {
     -- the adjacent monitor entirely. Disabling size_hints_honor makes
     -- Awesome tile it like the other WMs do: forced to the exact slot,
     -- ignoring the requested minimum.
+    -- Opening on Steam's own workspace (tag 1 of the primary monitor) is
+    -- the other half, like the rules below.
     { rule = { class = "steam" },
-      properties = { screen = 1, size_hints_honor = false } },
+      properties = { screen = function () return output_screen("DisplayPort-0") end,
+                     tag = "1", size_hints_honor = false } },
+
+    -- WebAppHub web apps (Chromium --app windows, class "chrome-<site>__-
+    -- <profile>") ask for a position of their own, so Awesome would float
+    -- them. Tile them, like Hyprland's rule for the same windows.
+    { rule = { class = "^chrome%-" },
+      properties = { floating = false } },
+
+    -- Apps that open on their own workspace, like Hyprland's workspace
+    -- rules: Vesktop on the rotated monitor's first tag (Hyprland's
+    -- workspace 2), YouTube Music on the primary's tag 7. Like Hyprland's
+    -- "silent", they open there without switching your view. The WebAppHub
+    -- window is matched on its site, since its X11 class differs from the
+    -- Wayland one Hyprland sees.
+    { rule = { class = "[Vv]esktop" },
+      properties = { screen = function () return output_screen("DisplayPort-1") end, tag = "1" } },
+    { rule_any = { instance = { "music%.youtube%.com" }, class = { "music%.youtube%.com" } },
+      properties = { screen = function () return output_screen("DisplayPort-0") end, tag = "7" } },
 }
 -- }}}
 

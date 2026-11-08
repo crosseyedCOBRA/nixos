@@ -1,25 +1,21 @@
 # Awesome session (home side): its helper scripts, bar (quickshell), rofi,
-# picom, dunst and config files. Imported first in ../home.nix so its part of
+# picom, dunst, clipboard history and config files. Colors follow the
+# wallpaper like Hyprland's: ../awesome/bin/awesome-colors renders them with
+# matugen (../awesome/matugen/) into files each of these reads. Imported first in ../home.nix so its part of
 # home.packages keeps its place at the front of the combined list.
-{ config, pkgs, inputs, ... }:
+{ config, lib, pkgs, inputs, ... }:
 
 let
+  # Fallback wallpaper, before the first random pick (and for its colors,
+  # see home.activation.awesomeColors).
   wallpaper = ../assets/wallpaper.jpg;
 
-  # Palette pulled from assets/wallpaper.jpg (deep space navy, nebula
-  # blue/purple, warm cloud orange, coral planet surface).
-  colors = {
-    bg = "#0a0e1a";
-    bgAlt = "#14162a";
-    surface = "#1a1b26";
-    border = "#292e42";
-    text = "#c0caf5";
-    muted = "#565f89";
-    blue = "#7aa2f7";
-    purple = "#9d7cd8";
-    orange = "#ff9e64";
-    pink = "#f7768e";
-  };
+  # ../awesome/bin/ (awesome-colors, lock-screen, ...), packaged like
+  # Hyprland's ../hyprland/bin/ (see ./hyprland.nix): tools by bare name,
+  # from the session's PATH.
+  awesomeScripts = map
+    (name: pkgs.writeScriptBin name (builtins.readFile (../awesome/bin + "/${name}")))
+    (builtins.attrNames (builtins.readDir ../awesome/bin));
 in
 {
   home.packages = with pkgs; [
@@ -34,6 +30,8 @@ in
     feh
     thunar
     tumbler # Thunar delegates all thumbnailing (image previews, etc.) to this D-Bus service -- no previews without it
+    imagemagick # lock-screen's blurred background, awesome-wallpaper-picker's thumbnails
+    jq # notification-history reads dunst's history as JSON
 
     (writeShellScriptBin "toggle-hdmi" ''
       # Toggles HDMI-A-0 (which normally mirrors DisplayPort-0) on/off.
@@ -44,24 +42,7 @@ in
       fi
     '')
 
-    polkit_gnome
-    (writeShellScriptBin "polkit-agent" ''
-      exec ${polkit_gnome}/libexec/polkit-gnome-authentication-agent-1
-    '')
-
-    # Screens otherwise never blank (DPMS/screensaver are disabled at
-    # Awesome startup, see rc.lua) -- this is the one place DPMS gets
-    # turned back on, for exactly as long as the session is locked, so
-    # the monitors do still sleep, just only while locked. i3lock itself
-    # is installed system-wide by `programs.i3lock.enable` in
-    # ../modules/awesome.nix (required for it to actually authenticate).
-    (writeShellScriptBin "lock-screen" ''
-      ${xset}/bin/xset s on
-      ${xset}/bin/xset dpms 30 30 30
-      ${i3lock}/bin/i3lock --nofork
-      ${xset}/bin/xset s off
-      ${xset}/bin/xset -dpms
-    '')
+    polkit_gnome # password prompts; started by its XDG autostart entry in the X session
 
     (writeShellScriptBin "power-menu" ''
       choice=$(printf 'Lock\nLogout\nSuspend\nReboot\nShutdown' | \
@@ -74,11 +55,14 @@ in
         Shutdown) ${systemd}/bin/systemctl poweroff ;;
       esac
     '')
-  ];
+  ] ++ awesomeScripts;
 
   programs.alacritty = {
     enable = true;
     settings = {
+      # Rendered from the wallpaper by awesome-colors; alacritty reloads it
+      # on change.
+      general.import = [ "~/.config/alacritty/colors.toml" ];
       window = {
         opacity = 0.95;
         padding = {
@@ -98,23 +82,20 @@ in
 
   programs.rofi = {
     enable = true;
-    terminal = "${pkgs.alacritty}/bin/alacritty";
-    font = "JetBrainsMono Nerd Font 11";
+    settings = {
+      terminal = "${pkgs.alacritty}/bin/alacritty";
+      font = "JetBrainsMono Nerd Font 11";
+    };
     theme =
       let
         inherit (config.lib.formats.rasi) mkLiteral;
       in
       {
-        "*" = {
-          bg = mkLiteral colors.bg;
-          bg-alt = mkLiteral colors.bgAlt;
-          surface = mkLiteral colors.surface;
-          border-color = mkLiteral colors.border;
-          fg = mkLiteral colors.text;
-          fg-muted = mkLiteral colors.muted;
-          accent = mkLiteral colors.blue;
-          urgent = mkLiteral colors.pink;
+        # The color variables used below (bg, surface, fg, accent, ...):
+        # rendered from the wallpaper by awesome-colors.
+        "@import" = "${config.home.homeDirectory}/.cache/awesome/rofi-colors.rasi";
 
+        "*" = {
           background-color = mkLiteral "transparent";
           text-color = mkLiteral "@fg";
 
@@ -233,8 +214,31 @@ in
     };
     settings = {
       corner-radius = 6;
+      # Square corners on the quickshell bar, which spans each monitor's full
+      # width -- rounded, the wallpaper showed through at its far ends.
+      rounded-corners-exclude = [ "window_type = 'dock'" ];
     };
   };
+  # Started by rc.lua rather than graphical-session.target, which Hyprland
+  # reaches too -- there picom found XWayland's compositor already running
+  # and failed, restarting forever.
+  systemd.user.services.picom.Install.WantedBy = lib.mkForce [ ];
+  # The picom package's XDG autostart entry, which the X session runs, would
+  # start a second picom that holds the screen before this unit's.
+  xdg.configFile."autostart/picom.desktop".text = ''
+    [Desktop Entry]
+    Type=Application
+    Name=picom
+    Hidden=true
+  '';
+  # Nor Blueman's tray icon: Bluetooth Manager (blueman-manager) is still in
+  # the app launcher, and services.blueman stays on for it.
+  xdg.configFile."autostart/blueman.desktop".text = ''
+    [Desktop Entry]
+    Type=Application
+    Name=Blueman Applet
+    Hidden=true
+  '';
 
   services.dunst = {
     enable = true;
@@ -252,6 +256,39 @@ in
       };
     };
   };
+  # swaync.service (Hyprland's notification daemon) claims the same
+  # notifications bus name, and systemd refuses to load either unit while
+  # both do. dunst doesn't need it: rc.lua starts it with the session, so
+  # it's already holding the name before anything sends a notification.
+  # BusName can't be unset, so it names dunst's own control interface
+  # (dunstctl's) instead, which nothing else claims.
+  systemd.user.services.dunst.Service = {
+    Type = lib.mkForce "simple";
+    BusName = lib.mkForce "org.dunstproject.cmd0";
+  };
+
+  # Clipboard history (Super+C, the bar's clipboard button), shown in rofi.
+  # X11 only, so rc.lua starts clipmenud rather than graphical-session.target
+  # (Hyprland has its own, cliphist).
+  services.clipmenu = {
+    enable = true;
+    launcher = "rofi";
+  };
+  systemd.user.services.clipmenu.Install.WantedBy = lib.mkForce [ ];
+
+  # Awesome's matugen config and templates (see awesome-colors).
+  xdg.configFile."matugen/awesome.toml".source = ../awesome/matugen/config.toml;
+  xdg.configFile."matugen/awesome/templates".source = ../awesome/matugen/templates;
+
+  # Colors for the fallback wallpaper, so rofi (which @imports its colors
+  # file and errors without it), dunst and the rest have some before the
+  # first awesome-colors run. Never overwrites colors from a real run.
+  home.activation.awesomeColors = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    if [ ! -e "$HOME/.cache/awesome/rofi-colors.rasi" ]; then
+      run ${pkgs.matugen}/bin/matugen image -q -m dark --source-color-index 0 \
+        -c "$HOME/.config/matugen/awesome.toml" ${wallpaper} </dev/null
+    fi
+  '';
 
   xdg.cacheFile."awesome/.keep".text = "";
 

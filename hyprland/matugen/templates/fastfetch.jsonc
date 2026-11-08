@@ -42,6 +42,8 @@
       "outputColor": "{{colors.outline.default.hex}}"
     },
     { "type": "wm",           "key": "\u2502 \uf2d0 wm",       "format": "{pretty-name} {version}" },
+    { "type": "command",      "key": "\u2502 \udb81\udc8b display",
+      "text": "if [ \"$XDG_SESSION_TYPE\" = x11 ]; then X -version 2>&1 | sed -n 's/ X Server / /p'; else echo Wayland; fi" },
     { "type": "shell",        "key": "\u2502 \uf120 shell",    "format": "{pretty-name} {version}" },
     { "type": "terminal",     "key": "\u2502 \ue795 terminal", "format": "{pretty-name} {version}" },
     { "type": "terminalfont", "key": "\u2502 \uf031 font" },

@@ -34,8 +34,11 @@ in
   ] ++ hyprScripts;
 
   # Polkit agent for the Hyprland session (started from hyprland.lua's
-  # autostart). The Awesome session keeps using polkit-agent (./awesome.nix).
+  # autostart). The Awesome session uses polkit_gnome (./awesome.nix).
   services.hyprpolkitagent.enable = true;
+  # hyprland.lua starts it; via graphical-session.target it would also start
+  # in Awesome, which has its own X11 agent (polkit_gnome).
+  systemd.user.services.hyprpolkitagent.Install.WantedBy = lib.mkForce [ ];
 
   # fastfetch/config.jsonc is deliberately NOT deployed here anymore --
   # matugen's fastfetch template (../hyprland/matugen/) now owns that file

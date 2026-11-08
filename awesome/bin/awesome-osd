@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# awesome-osd volume-up|volume-down|volume-mute|mic-mute|brightness-up|brightness-down
+#
+# Awesome's stand-in for Hyprland's swayosd (Wayland-only): makes the change,
+# then shows it as a dunst notification with a progress bar. The stack tag
+# makes each press replace the last popup instead of piling up. Volume
+# raises stop at 100%, like swayosd's --max-volume 100.
+
+set -uo pipefail
+
+osd() { # <icon> <title> [<percent>]
+    notify-send -a OSD -u low -t 1500 -i "$1" -h string:x-dunst-stack-tag:osd \
+        ${3:+-h int:value:"$3"} "$2" "${3:+$3%}"
+}
+
+sink_volume() { pactl get-sink-volume @DEFAULT_SINK@ | grep -oE '[0-9]+%' | head -1 | tr -d %; }
+
+case ${1:-} in
+    volume-up | volume-down)
+        vol=$(sink_volume)
+        if [[ $1 == volume-up ]]; then vol=$(( vol + 5 > 100 ? 100 : vol + 5 )); else vol=$(( vol - 5 < 0 ? 0 : vol - 5 )); fi
+        pactl set-sink-volume @DEFAULT_SINK@ "$vol%"
+        ;;&
+    volume-mute) pactl set-sink-mute @DEFAULT_SINK@ toggle ;;&
+    volume-*)
+        vol=$(sink_volume)
+        if [[ $(pactl get-sink-mute @DEFAULT_SINK@) == *yes ]]; then
+            osd audio-volume-muted "Muted"
+        else
+            icon=audio-volume-high
+            (( vol < 66 )) && icon=audio-volume-medium
+            (( vol < 33 )) && icon=audio-volume-low
+            osd "$icon" "Volume" "$vol"
+        fi
+        ;;
+    mic-mute)
+        pactl set-source-mute @DEFAULT_SOURCE@ toggle
+        if [[ $(pactl get-source-mute @DEFAULT_SOURCE@) == *yes ]]; then
+            osd microphone-sensitivity-muted "Microphone muted"
+        else
+            osd microphone-sensitivity-high "Microphone on"
+        fi
+        ;;
+    brightness-up | brightness-down)
+        [[ $1 == brightness-up ]] && step=+5% || step=5%-
+        brightnessctl -q set "$step" || exit 0
+        osd display-brightness "Brightness" "$(brightnessctl -m | cut -d, -f4 | tr -d %)"
+        ;;
+    *)
+        echo "usage: awesome-osd volume-up|volume-down|volume-mute|mic-mute|brightness-up|brightness-down" >&2
+        exit 1
+        ;;
+esac

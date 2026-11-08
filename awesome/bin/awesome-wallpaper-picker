@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# awesome-wallpaper-picker (Super+W)
+#
+# Thumbnail grid of $WALLPAPER_DIR in rofi -- Awesome's counterpart of
+# Hyprland's wofi-based wallpaper-picker. The choice goes to awesome-colors.
+# Thumbnails are cached in ~/.cache/awesome/thumbs (rofi would otherwise
+# decode every full-size image on each open); new images get theirs on the
+# next open.
+
+set -uo pipefail
+
+# Pressing the bind again while rofi is open closes it.
+pkill -x rofi && exit 0
+
+dir=${WALLPAPER_DIR:-$HOME/.config/wallpapers}
+thumbs=~/.cache/awesome/thumbs
+mkdir -p "$thumbs"
+
+mapfile -t imgs < <(find -L "$dir" -maxdepth 1 -type f \
+                      \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
+                      | sort)
+if (( ${#imgs[@]} == 0 )); then
+    notify-send -u critical "Wallpaper" "No images found in $dir"
+    exit 1
+fi
+
+thumb_of() { printf '%s/%s.jpg' "$thumbs" "$(printf '%s' "$1" | md5sum | cut -c1-16)"; }
+
+missing=()
+for img in "${imgs[@]}"; do
+    [[ -f $(thumb_of "$img") ]] || missing+=("$img")
+done
+if (( ${#missing[@]} )); then
+    notify-send -t 3000 "Wallpaper" "Making ${#missing[@]} thumbnails..."
+    for img in "${missing[@]}"; do
+        printf '%s\0%s\0' "$img" "$(thumb_of "$img")"
+    done | xargs -0 -n 2 -P "$(nproc)" sh -c 'magick "$0[0]" -thumbnail 400x225^ -gravity center -extent 400x225 "$1"'
+fi
+
+i=$(for img in "${imgs[@]}"; do
+        printf '%s\0icon\x1f%s\n' "$(basename "$img")" "$(thumb_of "$img")"
+    done | rofi -dmenu -i -show-icons -format i -p "Wallpaper" -theme-str '
+        window { width: 1300px; }
+        listview { columns: 3; lines: 3; }
+        element { orientation: vertical; padding: 10px; }
+        element-icon { size: 225px; }
+        element-text { horizontal-align: 0.5; }') || exit 0
+
+[[ $i =~ ^[0-9]+$ ]] && exec awesome-colors "${imgs[$i]}"

@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# lock-screen [--prepare] (Super+L, Super+Shift+X, power-menu's Lock)
+#
+# i3lock-color over a blurred copy of the current wallpaper, colored and
+# laid out like Hyprland's hyprlock: big clock, date, ring in the
+# wallpaper's colors. Media and volume keys keep working while locked.
+#
+# Screens otherwise never blank (rc.lua turns DPMS off at startup); this is
+# the one place it gets turned on, for exactly as long as the session is
+# locked -- they go off after a minute without input, same as Hyprland's.
+#
+# --prepare only builds the background image (a few seconds per new
+# wallpaper); awesome-colors runs it after each change so locking is instant.
+
+set -uo pipefail
+
+[[ ${1:-} != --prepare ]] && pgrep -x i3lock >/dev/null && exit 0
+
+cache=~/.cache/awesome
+wall=$(cat "$cache/current-wallpaper" 2>/dev/null)
+[[ -f $wall ]] || wall=~/.config/awesome/wallpaper.jpg
+
+# One composite image covering every monitor, each part cropped to its own
+# monitor's shape (the portrait one too). Rebuilt only when the wallpaper or
+# the monitor layout changes. Geometry lines look like 1920/527x1080/296+0+0.
+mons=$(xrandr --listactivemonitors | awk 'NR > 1 { print $3 }')
+img=$cache/lock-$(printf '%s\n%s\n' "$wall" "$mons" | md5sum | cut -c1-12).png
+if [[ ! -f $img ]]; then
+    rm -f "$cache"/lock-*.png
+    width=0 height=0 parts=()
+    while read -r geo; do
+        w=${geo%%/*}; rest=${geo#*x}; h=${rest%%/*}
+        pos=${geo#*+}; x=${pos%%+*}; y=${pos#*+}
+        (( x + w > width )) && width=$((x + w))
+        (( y + h > height )) && height=$((y + h))
+        parts+=( "(" "${wall}[0]" -resize "${w}x${h}^" -gravity center -extent "${w}x${h}"
+                 -resize 20% -blur 0x3 -resize "${w}x${h}!" -fill black -colorize 25% ")"
+                 -gravity northwest -geometry "+$x+$y" -composite )
+    done <<<"$mons"
+    magick -respect-parentheses -size "${width}x${height}" xc:black "${parts[@]}" -depth 8 "$img.tmp.png" \
+        && mv "$img.tmp.png" "$img"
+fi
+[[ ${1:-} == --prepare ]] && exit 0
+
+accent=c7bfffff accent2=ecb8cfff text=e5e1e9ff muted=c9c5d0ff surface=201f25d9 urgent=ffb4abff
+. "$cache/i3lock-colors.sh" 2>/dev/null
+
+xset s on
+xset dpms 60 60 60
+
+font="JetBrainsMono Nerd Font"
+i3lock --nofork --image="$img" \
+    --pass-media-keys --pass-volume-keys \
+    --clock --indicator --radius=60 --ring-width=6 \
+    --time-str="%H:%M" --time-font="$font:style=Bold" --time-size=96 --time-color="$text" \
+    --time-pos="ix:iy-190" \
+    --date-str="%A, %B %d" --date-font="$font" --date-size=20 --date-color="$muted" \
+    --date-pos="tx:ty+50" \
+    --verif-font="$font" --wrong-font="$font" --layout-font="$font" \
+    --verif-color="$text" --wrong-color="$urgent" --modif-color="$text" \
+    --inside-color="$surface" --ring-color="$accent" --line-color=00000000 \
+    --separator-color=00000000 --keyhl-color="$accent2" --bshl-color="$urgent" \
+    --insidever-color="$surface" --ringver-color="$accent2" \
+    --insidewrong-color="$surface" --ringwrong-color="$urgent"
+
+xset s off
+xset -dpms

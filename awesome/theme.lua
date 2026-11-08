@@ -1,8 +1,9 @@
 ---------------------------
--- Custom awesome theme, matching the i3/quickshell palette pulled from
--- assets/wallpaper.jpg (deep space navy, nebula blue/purple, warm cloud
--- orange, coral planet surface). Keep colors in sync with the `colors`
--- let-binding in home.nix.
+-- Custom awesome theme. Colors come from the current wallpaper:
+-- awesome-colors renders them into ~/.cache/awesome/colors.lua with
+-- matugen (template: ../awesome/matugen/templates/colors.lua) and has
+-- rc.lua's awesome_apply_theme() re-read this file. Until that file
+-- exists, the fixed palette below (from assets/wallpaper.jpg) is used.
 ---------------------------
 
 local theme_assets = require("beautiful.theme_assets")
@@ -16,14 +17,18 @@ local theme = {}
 
 theme.font          = "JetBrainsMono Nerd Font 11"
 
-local bg        = "#0a0e1a"
-local surface   = "#1a1b26"
-local border    = "#292e42"
-local text      = "#c0caf5"
-local muted     = "#565f89"
-local blue      = "#7aa2f7"
-local orange    = "#ff9e64"
-local pink      = "#f7768e"
+local home = os.getenv("HOME")
+local ok, c = pcall(dofile, home .. "/.cache/awesome/colors.lua")
+if not ok or type(c) ~= "table" then c = {} end
+
+local bg        = c.bg or "#0a0e1a"
+local surface   = c.surface or "#1a1b26"
+local border    = c.outline or "#292e42"
+local text      = c.text or "#c0caf5"
+local muted     = c.muted or "#565f89"
+local blue      = c.accent or "#7aa2f7"
+local orange    = c.accent2 or "#ff9e64"
+local pink      = c.urgent or "#f7768e"
 
 theme.bg_normal     = bg
 theme.bg_focus      = blue
@@ -99,8 +104,17 @@ theme.titlebar_fg_normal = muted
 theme.titlebar_bg_focus = surface
 theme.titlebar_fg_focus = text
 
--- Same wallpaper as the i3 setup; deployed alongside this theme file.
-theme.wallpaper = os.getenv("HOME") .. "/.config/awesome/wallpaper.jpg"
+-- The image awesome-colors last applied (random each login, or picked
+-- with Super+W), else the fixed one deployed alongside this file.
+theme.wallpaper = home .. "/.config/awesome/wallpaper.jpg"
+do
+    local f = io.open(home .. "/.cache/awesome/current-wallpaper")
+    if f then
+        local path = f:read("*l")
+        f:close()
+        if path and gfs.file_readable(path) then theme.wallpaper = path end
+    end
+end
 
 theme.layout_fairh = themes_path.."default/layouts/fairhw.png"
 theme.layout_fairv = themes_path.."default/layouts/fairvw.png"

@@ -24,12 +24,17 @@
         "--time"
         "--remember --remember-session" # sticky across reboots/logouts
         "--xsessions ${sessions}/share/xsessions"
+        # startx alone runs the session's bare script, skipping NixOS's X
+        # session setup: no DISPLAY for systemd user services (quickshell,
+        # picom, dunst), no ~/.xprofile (home-manager's session variables),
+        # no nixos-fake-graphical-session.target. The wrapper does all of
+        # that and then execs the session.
+        "--xsession-wrapper 'startx ${config.services.displayManager.sessionData.wrapper}'"
         "--sessions ${sessions}/share/wayland-sessions"
-        # Hyprland as the initial default: --cmd sets what runs before any
-        # session has ever been manually picked. --remember-session then
-        # overrides this with whatever *was* picked, on every login after
-        # the first manual selection (per tuigreet's own docs).
-        "--cmd ${config.programs.hyprland.package}/bin/start-hyprland"
+        # No --cmd: tuigreet shows a raw --cmd as its full /nix/store path
+        # instead of a session name. Sessions are picked by name from the
+        # F3 menu (Hyprland, awesome, Steam), and --remember-session keeps
+        # the last pick.
       ];
   };
   # greetd.service's own systemd PATH is a minimal curated list (coreutils/
@@ -51,10 +56,9 @@
     pkgs.kbd # deallocvt, startx's cleanup step -- degrades gracefully if missing, included anyway
   ];
   # services.displayManager.defaultSession isnt consulted by greetd/tuigreet
-  # (only LightDM/GDM/SDDM read it) -- kept in sync with the --cmd default
-  # above purely so this file doesnt contradict itself, plus it still
-  # feeds the sessionNames assertion. The actual default comes from
-  # tuigreet's --cmd/--remember-session, not this option.
+  # (only LightDM/GDM/SDDM read it) -- kept for the sessionNames
+  # assertion. What tuigreet starts is the session last picked in its F3
+  # menu (--remember-session), not this option.
   services.displayManager.defaultSession = "hyprland";
 
   # swayosd's own udev rule (lib/udev/rules.d/99-swayosd.rules), granting

@@ -1,5 +1,5 @@
-# X11 + Awesome session (system side), including the xrandr monitor layout.
-# Hyprland's monitors are in ../hyprland/hyprland.lua.
+# X11 + Awesome session (system side). Its monitor layout is set by
+# ../awesome/rc.lua (xrandr), Hyprland's by ../hyprland/hyprland.lua.
 { lib, pkgs, ... }:
 
 {
@@ -11,28 +11,13 @@
   # replacement -- see ../hyprland/.
   services.xserver.enable = true;
   services.xserver.windowManager.awesome.enable = true;
-
-  # Required for i3lock to actually authenticate: this generates
-  # /etc/pam.d/i3lock. Without it, i3lock has no PAM stack to check the
-  # password against and rejects every attempt, correct or not -- the
-  # i3 window manager module sets this automatically, but nothing does
-  # for Awesome, so it must be requested explicitly here.
-  programs.i3lock.enable = true;
-
-  # --- Monitor layout ---
-  # DisplayPort-0: primary, 165Hz. DisplayPort-1: rotated 90° right, to the
-  # right of DP-0. DisplayPort-2: further right of (rotated) DP-1, 144Hz.
-  # HDMI-A-0 (mirrors DisplayPort-0, native 4K) stays off by default —
-  # mirroring it had a real performance cost (likely an XLibre clone-mode
-  # bug) — and is toggled on/off on demand via Mod+d (the `toggle-hdmi`
-  # script).
-  services.xserver.displayManager.setupCommands = ''
-    ${pkgs.xrandr}/bin/xrandr \
-      --output DisplayPort-0 --mode 1920x1080 --rate 165 --pos 0x0 --rotate normal --primary \
-      --output DisplayPort-1 --mode 1920x1080 --rate 144 --rotate right --right-of DisplayPort-0 \
-      --output DisplayPort-2 --mode 1920x1080 --rate 144 --rotate normal --right-of DisplayPort-1 \
-      --output HDMI-A-0 --off
-  '';
+  # The login screen starts X with startx (see ./desktop.nix), and startx
+  # doesn't pass X the config NixOS generates -- without it X finds neither
+  # the amdgpu driver (falling back to modesetting, which names the outputs
+  # DP-1.. instead of rc.lua's DisplayPort-0..) nor libinput, so the
+  # keyboard and mouse never work. This writes that config to
+  # /etc/X11/xorg.conf, where X looks by default.
+  services.xserver.displayManager.startx.enable = true;
 
   # nixpkgs' X.Org server reverts an upstream damage-tracking change that
   # broke AMD drivers (xorg/xserver#1930). XLibre never took that change, so
@@ -52,4 +37,14 @@
     // lib.genAttrs [ "xf86-video-amdgpu" "xf86-input-libinput" "xf86-input-evdev" ]
       (name: prev.${name}.override { inherit (final) xorg-server; }))
   ];
+
+  # Required for i3lock to actually authenticate: this generates
+  # /etc/pam.d/i3lock. Without it, i3lock has no PAM stack to check the
+  # password against and rejects every attempt, correct or not -- the
+  # i3 window manager module sets this automatically, but nothing does
+  # for Awesome, so it must be requested explicitly here.
+  programs.i3lock.enable = true;
+  # i3lock-color: the blurred-wallpaper background, clock and themed ring
+  # in ../awesome/bin/lock-screen, and media keys while locked.
+  programs.i3lock.package = pkgs.i3lock-color;
 }

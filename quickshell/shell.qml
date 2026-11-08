@@ -8,17 +8,78 @@ import QtQuick.Layouts
 ShellRoot {
     id: root
 
-    // Palette pulled from assets/wallpaper.jpg (deep space navy, nebula
-    // blue/purple, warm cloud orange, coral planet surface). Keep in sync
-    // with the `colors` let-binding in home.nix.
-    readonly property color colorBg: "#0a0e1a"
-    readonly property color colorSurface: "#1a1b26"
-    readonly property color colorBorder: "#292e42"
-    readonly property color colorText: "#c0caf5"
-    readonly property color colorMuted: "#565f89"
-    readonly property color colorBlue: "#7aa2f7"
-    readonly property color colorOrange: "#ff9e64"
-    readonly property color colorPink: "#f7768e"
+    // Colors from the current wallpaper: awesome-colors renders them into
+    // this file with matugen (template: ../awesome/matugen/templates/
+    // colors.json) and the bar repaints as soon as it changes. Until it
+    // exists, the fixed palette from assets/wallpaper.jpg.
+    FileView {
+        id: colorsFile
+        path: Quickshell.env("HOME") + "/.cache/awesome/colors.json"
+        watchChanges: true
+        onFileChanged: this.reload()
+    }
+    readonly property var themeColors: {
+        try {
+            return JSON.parse(colorsFile.text());
+        } catch (e) {
+            return {};
+        }
+    }
+    readonly property color colorBg: themeColors.bg || "#0a0e1a"
+    readonly property color colorSurface: themeColors.surface || "#1a1b26"
+    readonly property color colorBorder: themeColors.outline || "#292e42"
+    readonly property color colorText: themeColors.text || "#c0caf5"
+    readonly property color colorMuted: themeColors.muted || "#565f89"
+    readonly property color colorBlue: themeColors.accent || "#7aa2f7"
+    readonly property color colorOrange: themeColors.accent2 || "#ff9e64"
+    readonly property color colorPink: themeColors.urgent || "#f7768e"
+
+    // CPU, memory, CPU temperature and network state, like waybar's
+    // modules in the Hyprland session: one small read every 2s, shared by
+    // every bar. CPU is the busy share of the time since the last read.
+    property int cpuPercent: 0
+    property int memPercent: 0
+    property int tempC: 0
+    property bool online: false
+    property var prevCpu: null
+
+    function parseStats(out) {
+        const lines = out.trim().split("\n");
+        const cpu = lines[0].trim().split(/\s+/).slice(1).map(Number);
+        const idle = cpu[3] + cpu[4];
+        const total = cpu.reduce((a, b) => a + b, 0);
+        if (root.prevCpu && total > root.prevCpu.total)
+            root.cpuPercent = Math.round(100 * (1 - (idle - root.prevCpu.idle) / (total - root.prevCpu.total)));
+        root.prevCpu = { total: total, idle: idle };
+
+        const kb = name => Number(((lines.find(l => l.startsWith(name)) || "").split(/\s+/))[1] || 0);
+        if (kb("MemTotal:") > 0)
+            root.memPercent = Math.round(100 * (1 - kb("MemAvailable:") / kb("MemTotal:")));
+
+        const temp = lines.find(l => /^\d+$/.test(l));
+        if (temp) root.tempC = Math.round(Number(temp) / 1000);
+
+        root.online = lines.some(l => l.startsWith("connected"));
+    }
+
+    Process {
+        id: statsProcess
+        command: [ "sh", "-c",
+            "head -1 /proc/stat;" +
+            " grep -E '^(MemTotal|MemAvailable):' /proc/meminfo;" +
+            " for h in /sys/class/hwmon/*; do [ \"$(cat $h/name)\" = k10temp ] && cat $h/temp1_input; done;" +
+            " nmcli -t -f STATE general" ]
+        stdout: StdioCollector {
+            onStreamFinished: root.parseStats(this.text)
+        }
+    }
+    Timer {
+        interval: 2000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: statsProcess.running = true
+    }
 
     // Awesome has no native IPC, so its rc.lua pushes per-screen tag state
     // to this file (keyed by output name) whenever it changes.
@@ -59,6 +120,10 @@ ShellRoot {
             }
             implicitHeight: 32
             color: root.colorBg
+
+            // The primary monitor's bar gets the full set of readouts, the
+            // others a reduced one -- the same split as waybar's config.
+            readonly property bool isPrimary: modelData.name === "DisplayPort-0"
 
             Item {
                 anchors.fill: parent
@@ -137,6 +202,7 @@ ShellRoot {
 
                 // --- Layout indicator: this monitor's current layout ---
                 Rectangle {
+                    id: layoutIndicator
                     anchors.left: workspaces.right
                     anchors.leftMargin: 10
                     anchors.verticalCenter: parent.verticalCenter
@@ -153,6 +219,50 @@ ShellRoot {
                         text: (root.awesomeTags[bar.screen.name] || {}).layout || ""
                         color: root.colorMuted
                         font.pixelSize: 12
+                    }
+                }
+
+                // --- Screenshot and clipboard buttons, like waybar's (clipboard
+                // on the primary monitor's bar only, as there) ---
+                RowLayout {
+                    anchors.left: layoutIndicator.right
+                    anchors.leftMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 12
+
+                    Text {
+                        text: String.fromCodePoint(0xf0e51)
+                        font.family: "JetBrainsMono Nerd Font"
+                        font.pixelSize: 15
+                        color: root.colorText
+
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -4
+                            onClicked: screenshotProcess.running = true
+                        }
+                        Process {
+                            id: screenshotProcess
+                            command: [ "flameshot", "gui" ]
+                        }
+                    }
+
+                    Text {
+                        visible: bar.isPrimary
+                        text: String.fromCodePoint(0xed7b)
+                        font.family: "JetBrainsMono Nerd Font"
+                        font.pixelSize: 15
+                        color: root.colorText
+
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -4
+                            onClicked: clipboardProcess.running = true
+                        }
+                        Process {
+                            id: clipboardProcess
+                            command: [ "clipmenu" ]
+                        }
                     }
                 }
 
@@ -448,6 +558,26 @@ ShellRoot {
                                     }
                                 }
                             }
+                        }
+                    }
+
+                    // CPU, memory, temperature (primary bar only) and network
+                    Repeater {
+                        model: [
+                            { glyph: 0xf4bc, value: root.cpuPercent + "%", primaryOnly: true },
+                            { glyph: 0xefc5, value: root.memPercent + "%", primaryOnly: true },
+                            { glyph: 0xf2c7, value: root.tempC + "°C", primaryOnly: true },
+                            { glyph: root.online ? 0xf0201 : 0xf0202,
+                              value: root.online ? "Connected" : "Disconnected", primaryOnly: false }
+                        ]
+
+                        Text {
+                            required property var modelData
+                            visible: bar.isPrimary || !modelData.primaryOnly
+                            text: String.fromCodePoint(modelData.glyph) + " " + modelData.value
+                            font.family: "JetBrainsMono Nerd Font"
+                            font.pixelSize: 13
+                            color: root.colorText
                         }
                     }
 

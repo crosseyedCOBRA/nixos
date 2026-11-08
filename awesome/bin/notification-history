@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# notification-history (Super+N)
+#
+# Awesome's stand-in for Hyprland's swaync panel: dunst's notification
+# history in rofi, newest first. Picking one shows it again; the first two
+# entries toggle Do Not Disturb (dunst holds notifications until it's
+# turned off) and clear the history.
+
+set -uo pipefail
+
+pkill -x rofi && exit 0
+
+mapfile -t ids < <(dunstctl history | jq -r '.data[0][].id.data')
+mapfile -t lines < <(dunstctl history | jq -r '.data[0][]
+    | [.appname.data, .summary.data, .body.data]
+    | map(gsub("\\s+"; " ") | select(. != "")) | join("  ·  ")')
+
+[[ $(dunstctl is-paused) == true ]] && dnd="on" || dnd="off"
+
+choice=$({
+    printf 'Do not disturb: %s\n' "$dnd"
+    printf 'Clear history (%d)\n' "${#ids[@]}"
+    (( ${#lines[@]} )) && printf '%s\n' "${lines[@]}"
+} | rofi -dmenu -i -format i -p "Notifications" -theme-str 'window { width: 800px; }') || exit 0
+
+case $choice in
+    0) dunstctl set-paused toggle ;;
+    1) dunstctl history-clear ;;
+    *) dunstctl history-pop "${ids[choice - 2]}" ;;
+esac
