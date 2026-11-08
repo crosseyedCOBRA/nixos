@@ -22,9 +22,11 @@
   # sched-ext: swap the kernel's default CFS/EEVDF scheduler for a
   # BPF-loaded one. scx_bpfland prioritizes low latency for
   # interactive/foreground tasks (games, audio) over raw throughput.
-  services.scx = {
+  # scx_loader starts it at boot (services.scx was replaced by this); the
+  # running scheduler can also be switched live with `scxctl`.
+  services.scx-loader = {
     enable = true;
-    scheduler = "scx_bpfland";
+    config.default_sched = "scx_bpfland";
   };
 
   # sp5100_tco (AMD SP5100/SB800 chipset hardware watchdog timer) is what

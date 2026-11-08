@@ -1,6 +1,6 @@
 # X11 + Awesome session (system side), including the xrandr monitor layout.
 # Hyprland's monitors are in ../hyprland/hyprland.lua.
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 
 {
   # --- X11 + Awesome ---
@@ -33,4 +33,23 @@
       --output DisplayPort-2 --mode 1920x1080 --rate 144 --rotate normal --right-of DisplayPort-1 \
       --output HDMI-A-0 --off
   '';
+
+  # nixpkgs' X.Org server reverts an upstream damage-tracking change that
+  # broke AMD drivers (xorg/xserver#1930). XLibre never took that change, so
+  # the revert doesn't apply to its source and fails the build of the XLibre
+  # server the xlibre-overlay swaps in (flake.nix). This drops just that
+  # patch, after the xlibre overlays (mkAfter). Their X drivers are built
+  # against a private copy of the server this can't reach, so the ones this
+  # system loads (services.xserver.modules) are rebuilt against the fixed one.
+  nixpkgs.overlays = lib.mkAfter [
+    (final: prev: {
+      xorg-server = prev.xorg-server.overrideAttrs (old: {
+        patches = builtins.filter
+          (p: (p.name or "") != "revert-damage-unlink-abi-break.patch")
+          (old.patches or [ ]);
+      });
+    }
+    // lib.genAttrs [ "xf86-video-amdgpu" "xf86-input-libinput" "xf86-input-evdev" ]
+      (name: prev.${name}.override { inherit (final) xorg-server; }))
+  ];
 }

@@ -38,12 +38,17 @@ in
     python3
     dmidecode # RAM/BIOS hardware info -- needs root, hence a system package
     chromium
-    brave
     vivaldi
     firefox
     protonhax
     protontricks
-    rusty-path-of-building # Path of Building / PoB2 -- native Linux runtime, no Wine needed
+    # Path of Building / PoB2 -- native Linux runtime, no Wine needed. zstd and
+    # aws-lc: nixpkgs' Rust builds now link these crates' system libraries
+    # instead of bundled copies, and the nixpkgs package doesn't provide them
+    # yet (build fails asking for libzstd, then AWS-LC; 2026-11).
+    (rusty-path-of-building.overrideAttrs (old: {
+      buildInputs = (old.buildInputs or [ ]) ++ [ zstd aws-lc ];
+    }))
     claude-code
     vesktop
     xdg-user-dirs
@@ -84,6 +89,7 @@ in
   # --- Flatpak apps (declarative via nix-flatpak) ---
   services.flatpak.packages = [
     "app.zen_browser.zen" # Zen browser (Flatpak since 2026-10; was the zen-browser flake)
+    "com.brave.Browser" # Brave (Flatpak since 2026-11: removed from nixpkgs)
     "org.pvermeer.WebAppHub" # web app installer
     "eu.betterbird.Betterbird" #email client
     "com.chatterino.chatterino" #chatterino
