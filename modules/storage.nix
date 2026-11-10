@@ -52,12 +52,8 @@
   zramSwap.enable = true;
 
   # --- External drives ---
-  # nofail so boot doesn't hang/fail if either drive is unplugged.
-  fileSystems."/mnt/wd" = {
-    device = "/dev/disk/by-uuid/bfc665b1-20ba-4eca-927e-aaa2cc0656ae";
-    fsType = "xfs";
-    options = [ "nofail" ];
-  };
+  # nofail so boot doesn't hang/fail if the drive is unplugged. (The WD 1 TB
+  # SSD that was /mnt/wd is set aside for a Windows install, 2026-11.)
   fileSystems."/mnt/samsung" = {
     device = "/dev/disk/by-uuid/f2602e89-279c-42e7-8f9c-0b2cbeb06bcc";
     fsType = "xfs";
