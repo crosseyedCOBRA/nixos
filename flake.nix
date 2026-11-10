@@ -16,6 +16,13 @@
 
     nix-flatpak.url = "github:gmodena/nix-flatpak";
 
+    # Secure Boot for NixOS (modules/boot.nix), so it keeps booting with
+    # Secure Boot on -- which Windows' Vanguard anti-cheat requires.
+    lanzaboote = {
+      url = "github:nix-community/lanzaboote/v1.2.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # The Arch dotfiles repo, for its wallpapers/ folder (home.nix links it to
     # ~/.config/wallpapers) -- one copy of the images instead of two. After
     # adding wallpapers there: `nix flake update hyprland-dotfiles`.
@@ -44,6 +51,7 @@
           { nixpkgs.hostPlatform = "x86_64-linux"; }
           ./configuration.nix
           inputs.nix-flatpak.nixosModules.nix-flatpak
+          inputs.lanzaboote.nixosModules.lanzaboote
           inputs.xlibre-overlay.nixosModules.overlay-xlibre-xserver
           inputs.xlibre-overlay.nixosModules.overlay-all-xlibre-drivers
           home-manager.nixosModules.home-manager

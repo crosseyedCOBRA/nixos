@@ -1,11 +1,20 @@
 # Bootloader, kernel and scheduler.
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 
 {
   # --- Bootloader ---
-  # Assumes UEFI. If this machine is legacy BIOS, swap this for boot.loader.grub instead.
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.systemd-boot.memtest86.enable = true; # adds a memtest86+ boot-menu entry
+  # systemd-boot, installed and signed by lanzaboote for Secure Boot (which
+  # Vanguard needs on the Windows side). Keys come from `sudo sbctl
+  # create-keys` (in /var/lib/sbctl) and are enrolled in the firmware with
+  # `sudo sbctl enroll-keys --microsoft` -- Microsoft's keys too, so Windows
+  # and the GPU's option ROM still boot. lanzaboote replaces the systemd-boot
+  # module, hence the mkForce; that also drops its memtest86+ menu entry,
+  # which couldn't boot unsigned under Secure Boot anyway.
+  boot.loader.systemd-boot.enable = lib.mkForce false;
+  boot.lanzaboote = {
+    enable = true;
+    pkiBundle = "/var/lib/sbctl";
+  };
   boot.loader.efi.canTouchEfiVariables = true;
 
   # NixOS's default `linuxPackages` is a conservative pin, not the newest

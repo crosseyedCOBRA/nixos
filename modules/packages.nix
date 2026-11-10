@@ -37,6 +37,7 @@ in
     file
     python3
     dmidecode # RAM/BIOS hardware info -- needs root, hence a system package
+    sbctl # Secure Boot keys and status (lanzaboote, see ./boot.nix)
     chromium
     vivaldi
     firefox
