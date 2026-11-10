@@ -19,7 +19,7 @@ let
 in
 {
   home.packages = with pkgs; [
-    inputs.quickshell.packages.${pkgs.system}.default
+    inputs.quickshell.packages.${pkgs.stdenv.hostPlatform.system}.default
     libnotify
     playerctl
     brightnessctl
@@ -305,7 +305,7 @@ in
       After = [ "graphical-session.target" ];
     };
     Service = {
-      ExecStart = "${inputs.quickshell.packages.${pkgs.system}.default}/bin/quickshell -p %h/.config/quickshell/shell.qml";
+      ExecStart = "${inputs.quickshell.packages.${pkgs.stdenv.hostPlatform.system}.default}/bin/quickshell -p %h/.config/quickshell/shell.qml";
       Restart = "on-failure";
     };
   };
