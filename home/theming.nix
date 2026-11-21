@@ -107,4 +107,29 @@
     gtk.enable = true;
     x11.enable = true;
   };
+
+  # Flatpak apps (Zen, Brave, ...) see ~/.local/share/icons (as
+  # /run/host/user-share/icons) but not /nix/store, so the cursor theme
+  # home-manager links there was a dead link inside the sandbox and they
+  # fell back to the default cursor. Real copies instead, refreshed when
+  # the theme package changes. ~/.icons (native apps) stays linked.
+  xdg.dataFile."icons/${config.home.pointerCursor.name}".enable = lib.mkForce false;
+  xdg.dataFile."icons/default/index.theme".enable = lib.mkForce false;
+  home.activation.flatpakCursorTheme = lib.hm.dag.entryAfter [ "linkGeneration" ]
+    (let
+      cursor = config.home.pointerCursor;
+      src = "${cursor.package}/share/icons/${cursor.name}";
+    in ''
+      icons="$HOME/.local/share/icons"
+      if [ "$(cat "$icons/${cursor.name}/.source" 2>/dev/null)" != "${src}" ]; then
+        run rm -rf "$icons/${cursor.name}"
+        run mkdir -p "$icons"
+        run cp -rL --no-preserve=mode,ownership "${src}" "$icons/${cursor.name}"
+        run sh -c 'echo "$1" > "$2"' _ "${src}" "$icons/${cursor.name}/.source"
+      fi
+      run install -Dm644 /dev/stdin "$icons/default/index.theme" <<'EOF'
+      [Icon Theme]
+      Inherits=${cursor.name}
+      EOF
+    '');
 }
