@@ -1,5 +1,5 @@
 # Shared by both sessions: the greetd/tuigreet login screen, portals,
-# fonts, theming plumbing and the swayosd udev rule.
+# fonts and theming plumbing.
 { config, lib, pkgs, username, ... }:
 
 {
@@ -59,12 +59,7 @@
   # (only LightDM/GDM/SDDM read it) -- kept for the sessionNames
   # assertion. What tuigreet starts is the session last picked in its F3
   # menu (--remember-session), not this option.
-  services.displayManager.defaultSession = "hyprland";
-
-  # swayosd's own udev rule (lib/udev/rules.d/99-swayosd.rules), granting
-  # its server process backlight sysfs write access -- see the swayosd
-  # comment in ./packages.nix for the polkit half.
-  services.udev.packages = [ pkgs.swayosd ];
+  services.displayManager.defaultSession = "none+awesome";
 
   # --- Theming ---
   # Required by home-manager's `dconf.settings` (used for GTK dark mode).
@@ -84,8 +79,7 @@
     noto-fonts
     noto-fonts-color-emoji
     font-awesome
-    inter # waybar/wofi's font-family (../hyprland/waybar/style.css, ../hyprland/matugen/templates/wofi-style.css)
-    adwaita-fonts # GTK/Qt UI font in the Hyprland session (gtk.font in ../home/theming.nix, ../hyprland/qt6ct/)
+    adwaita-fonts # GTK/Qt UI font (gtk.font in ../home/theming.nix, ../hyprland/qt6ct/)
   ] ++ lib.attrValues (lib.filterAttrs (_: lib.isDerivation) nerd-fonts);
 
   # gdk-pixbuf ships no WebP decoder, so the two .webp wallpapers came up

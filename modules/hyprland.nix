@@ -1,6 +1,6 @@
 # Hyprland session (system side). Its config lives in ../hyprland/ and is
 # deployed by ../home/hyprland.nix.
-{ ... }:
+{ pkgs, ... }:
 
 {
   # --- Hyprland ---
@@ -19,4 +19,19 @@
   # re-enables DPMS" design (see rc.lua/../home/awesome.nix's lock-screen). Just the
   # PAM stack is needed for a manually-invoked hyprlock to authenticate.
   security.pam.services.hyprlock = { };
+
+  # swayosd: volume/brightness OSD (see hyprland.lua's XF86Audio*/
+  # XF86MonBrightness* binds). Installed system-wide (not just via
+  # home.packages) so its polkit action file
+  # (share/polkit-1/actions/org.erikreider.swayosd.policy) gets picked up --
+  # polkit aggregates actions from the system profile, not the per-user
+  # home-manager one. Its udev rule (lib/udev/rules.d/99-swayosd.rules) is
+  # the other half: it grants swayosd-server write access to backlight sysfs
+  # without running as root.
+  environment.systemPackages = [ pkgs.swayosd ];
+  services.udev.packages = [ pkgs.swayosd ];
+
+  # waybar/wofi's font-family (../hyprland/waybar/style.css,
+  # ../hyprland/matugen/templates/wofi-style.css).
+  fonts.packages = [ pkgs.inter ];
 }

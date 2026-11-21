@@ -2,11 +2,10 @@
 # awesome-colors <image> | --random-once
 #
 # Awesome's counterpart of Hyprland's apply-colors: makes <image> the
-# wallpaper and recolors the session from it. Runs matugen twice -- the
-# shared config (GTK, kitty, starship, btop, Vesktop, ... -- the same files
-# Hyprland renders) and then Awesome's own (~/.config/matugen/awesome.toml:
-# borders, quickshell bar, rofi, dunst, alacritty, lock screen) -- then
-# pushes the result into what's already running.
+# wallpaper and recolors the session from it with matugen
+# (~/.config/matugen/awesome.toml: borders, quickshell bar, rofi, dunst,
+# alacritty, the lock screen, GTK apps, starship, fastfetch, btop, Vesktop),
+# then pushes the result into what's already running.
 #
 # --random-once picks a random image from $WALLPAPER_DIR, but only once
 # per login: rc.lua runs it at every (re)start, and Super+Ctrl+R shouldn't
@@ -37,12 +36,10 @@ printf '%s\n' "$img" > "$cache/current-wallpaper"
 
 # --source-color-index: matugen refuses to guess between candidate colors
 # without a terminal to prompt on, which is always the case here.
-for config in ~/.config/matugen/config.toml ~/.config/matugen/awesome.toml; do
-    if ! matugen image -q -m dark --source-color-index 0 -c "$config" "$img" </dev/null; then
-        notify-send -u critical "awesome-colors" "matugen failed for $(basename "$img")"
-        exit 1
-    fi
-done
+if ! matugen image -q -m dark --source-color-index 0 -c ~/.config/matugen/awesome.toml "$img" </dev/null; then
+    notify-send -u critical "awesome-colors" "matugen failed for $(basename "$img")"
+    exit 1
+fi
 
 # rc.lua's awesome_apply_theme(): re-reads theme.lua (colors + wallpaper)
 # and repaints wallpapers and window borders. The quickshell bar watches

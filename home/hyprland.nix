@@ -20,7 +20,6 @@ in
     hyprpaper
     hyprlock
     hypridle # monitor timeout while locked only, see ../hyprland/bin/hyprlock-timeout
-    matugen # wallpaper -> ~/.config/hypr/colors.css, see ../hyprland/matugen/
     swaynotificationcenter # notification daemon, no Wayland/layer-shell support in dunst (Awesome's daemon)
     grim # screenshot capture, see ../hyprland/bin/screenshot-region
     slurp # region selector for screenshot-region
@@ -29,8 +28,6 @@ in
 
     # Qt apps (hyprpolkitagent, ...) in the Hyprland session take their style,
     # colors and icons from qt6ct (QT_QPA_PLATFORMTHEME, set in hyprland.lua).
-    kdePackages.qt6ct
-    kdePackages.breeze
   ] ++ hyprScripts;
 
   # Polkit agent for the Hyprland session (started from hyprland.lua's
@@ -100,43 +97,11 @@ in
     [ "../hypr/colors.css" ]
     [ "${config.home.homeDirectory}/.config/hypr/colors.css" ]
     (builtins.readFile ../hyprland/swaync/style.css);
-  # qt6ct.conf points at its color scheme by absolute path.
-  xdg.configFile."qt6ct/qt6ct.conf".text = builtins.replaceStrings
-    [ "/home/mike/" ]
-    [ "${config.home.homeDirectory}/" ]
-    (builtins.readFile ../hyprland/qt6ct/qt6ct.conf);
-  xdg.configFile."qt6ct/colors/breeze-dark.conf".source = ../hyprland/qt6ct/colors/breeze-dark.conf;
-  # The scripts look for wallpapers in ~/.config/wallpapers -- the same
-  # wallpapers/ folder the Arch setup uses, from the hyprland-dotfiles flake
-  # input (see flake.nix).
-  xdg.configFile."wallpapers".source = "${inputs.hyprland-dotfiles}/wallpapers";
 
-  # Folders matugen renders into but nothing else creates (it won't create
-  # them itself), and Vesktop's theme switched on -- Vesktop rewrites its
-  # own settings.json, so it's merged into rather than deployed.
-  #
-  # kdeglobals (KDE apps' colors), btop.conf (color_theme = matugen) and
-  # MangoHud.conf (the in-game overlay; MangoJuice edits it) are copied, not
-  # linked: those apps rewrite these files themselves,
-  # which a read-only store link would break. Like install.sh on Arch, the
-  # repo version wins on every switch; the replaced file is kept as .bak.
+  # Folders Hyprland's color templates render into (apply-colors); matugen
+  # won't create them itself. The app config shared with Awesome (Qt theme,
+  # wallpapers, kdeglobals, btop, MangoHud, Vesktop) is in ./theming.nix.
   home.activation.hyprlandThemeDirs = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    place() {
-      if [ -e "$2" ] && ! ${pkgs.diffutils}/bin/cmp -s "$1" "$2"; then run cp "$2" "$2.bak"; fi
-      ${pkgs.diffutils}/bin/cmp -s "$1" "$2" || run install -Dm644 "$1" "$2"
-    }
-    place ${../hyprland/kde/kdeglobals} "$HOME/.config/kdeglobals"
-    place ${../hyprland/btop/btop.conf} "$HOME/.config/btop/btop.conf"
-    place ${../hyprland/mangohud/MangoHud.conf} "$HOME/.config/MangoHud/MangoHud.conf"
-    run mkdir -p "$HOME/.cache/hypr" "$HOME/.config/swayosd" "$HOME/.config/btop/themes" \
-      "$HOME/.config/vesktop/themes" "$HOME/.config/fastfetch"
-    vesk="$HOME/.config/vesktop/settings/settings.json"
-    if [ ! -f "$vesk" ]; then
-      run install -Dm644 ${pkgs.writeText "vesktop-settings.json" "{ \"enabledThemes\": [\"matugen.theme.css\"] }"} "$vesk"
-    elif ! ${pkgs.jq}/bin/jq -e '.enabledThemes // [] | index("matugen.theme.css")' "$vesk" >/dev/null; then
-      tmp=$(mktemp)
-      ${pkgs.jq}/bin/jq '.enabledThemes = ((.enabledThemes // []) + ["matugen.theme.css"] | unique)' "$vesk" > "$tmp" \
-        && run mv "$tmp" "$vesk"
-    fi
+    run mkdir -p "$HOME/.cache/hypr" "$HOME/.config/swayosd"
   '';
 }

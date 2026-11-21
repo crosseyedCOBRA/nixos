@@ -57,16 +57,6 @@ in
     loupe # image viewer, default for image/* via ~/.config/mimeapps.list
     vscodium
 
-    # swayosd: volume/brightness OSD (see hyprland.lua's XF86Audio*/
-    # XF86MonBrightness* binds). Installed system-wide (not just via
-    # home.packages) so its polkit action file
-    # (share/polkit-1/actions/org.erikreider.swayosd.policy) gets picked
-    # up -- polkit aggregates actions from the system profile, not the
-    # per-user home-manager one. services.udev.packages (./desktop.nix) is the
-    # other half: the udev rule granting the swayosd-server process
-    # write access to backlight sysfs without running as root.
-    swayosd
-
     # --- Gaming ---
     mangohud
     lutris

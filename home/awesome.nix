@@ -291,6 +291,14 @@ in
   # Awesome's matugen config and templates (see awesome-colors).
   xdg.configFile."matugen/awesome.toml".source = ../awesome/matugen/config.toml;
   xdg.configFile."matugen/awesome/templates".source = ../awesome/matugen/templates;
+  # The app templates (GTK, starship, fastfetch, btop, Vesktop), shared with
+  # Hyprland's color config.
+  xdg.configFile."matugen/awesome/apps/gtk3.css".source = ../hyprland/matugen/templates/gtk3.css;
+  xdg.configFile."matugen/awesome/apps/gtk4.css".source = ../hyprland/matugen/templates/gtk4.css;
+  xdg.configFile."matugen/awesome/apps/starship.toml".source = ../hyprland/matugen/templates/starship.toml;
+  xdg.configFile."matugen/awesome/apps/fastfetch.jsonc".source = ../hyprland/matugen/templates/fastfetch.jsonc;
+  xdg.configFile."matugen/awesome/apps/btop.theme".source = ../hyprland/matugen/templates/btop.theme;
+  xdg.configFile."matugen/awesome/apps/vesktop.theme.css".source = ../hyprland/matugen/templates/vesktop.theme.css;
 
   # Colors for the fallback wallpaper, so rofi (which @imports its colors
   # file and errors without it), dunst and the rest have some before the

@@ -1,7 +1,8 @@
-# matugen config for the Awesome session's own templates -- run by
-# awesome-colors (../bin/awesome-colors) right after the shared config
-# (../../hyprland/matugen/config.toml), which already covers GTK, kitty,
-# starship, btop, Vesktop, ... for both sessions. Same image, same colors.
+# matugen config for the Awesome session -- run by awesome-colors
+# (../bin/awesome-colors) on each wallpaper: Awesome's own templates below,
+# then the app ones (GTK, starship, fastfetch, btop, Vesktop), whose
+# templates are shared with Hyprland's config (../../hyprland/matugen/) and
+# deployed to ~/.config/matugen/awesome/apps/ by home/awesome.nix.
 
 [config]
 
@@ -38,3 +39,29 @@ output_path = "~/.config/alacritty/colors.toml"
 [templates.i3lock]
 input_path = "~/.config/matugen/awesome/templates/i3lock-colors.sh"
 output_path = "~/.cache/awesome/i3lock-colors.sh"
+
+# --- Apps ---
+
+[templates.gtk3]
+input_path = "~/.config/matugen/awesome/apps/gtk3.css"
+output_path = "~/.config/gtk-3.0/gtk.css"
+
+[templates.gtk4]
+input_path = "~/.config/matugen/awesome/apps/gtk4.css"
+output_path = "~/.config/gtk-4.0/gtk.css"
+
+[templates.starship]
+input_path = "~/.config/matugen/awesome/apps/starship.toml"
+output_path = "~/.config/starship.toml"
+
+[templates.fastfetch]
+input_path = "~/.config/matugen/awesome/apps/fastfetch.jsonc"
+output_path = "~/.config/fastfetch/config.jsonc"
+
+[templates.btop]
+input_path = "~/.config/matugen/awesome/apps/btop.theme"
+output_path = "~/.config/btop/themes/matugen.theme"
+
+[templates.vesktop]
+input_path = "~/.config/matugen/awesome/apps/vesktop.theme.css"
+output_path = "~/.config/vesktop/themes/matugen.theme.css"

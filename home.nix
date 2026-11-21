@@ -1,12 +1,12 @@
 { config, lib, pkgs, username, inputs, ... }:
 
 {
-  # The first three each add a slice of home.packages; the combined list
-  # follows this import order.
+  # Several of these add a slice of home.packages; the combined list follows
+  # this import order. ./home/hyprland.nix is left out while Hyprland is off
+  # (see ../configuration.nix's imports to bring it back).
   imports = [
     ./home/awesome.nix
     ./home/streaming.nix
-    ./home/hyprland.nix
     ./home/theming.nix
     ./home/shell.nix
     ./home/browsers.nix
