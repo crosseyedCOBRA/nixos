@@ -217,6 +217,18 @@ in
       # Square corners on the quickshell bar, which spans each monitor's full
       # width -- rounded, the wallpaper showed through at its far ends.
       rounded-corners-exclude = [ "window_type = 'dock'" ];
+      # Frosted glass behind see-through windows (alacritty's 95% opacity),
+      # about Hyprland's blur strength. Only translucent windows show it.
+      # Not behind the bar (opaque anyway) or flameshot's capture overlay.
+      blur = {
+        method = "dual_kawase";
+        strength = 4;
+      };
+      blur-background-exclude = [
+        "window_type = 'dock'"
+        "window_type = 'desktop'"
+        "class_g = 'flameshot'"
+      ];
     };
   };
   # Started by rc.lua rather than graphical-session.target, which Hyprland

@@ -38,9 +38,14 @@ ShellRoot {
     // modules in the Hyprland session: one small read every 2s, shared by
     // every bar. CPU is the busy share of the time since the last read.
     property int cpuPercent: 0
+    property int cpuThreads: 0
     property int memPercent: 0
+    property real memUsedGiB: 0
+    property real memTotalGiB: 0
     property int tempC: 0
     property bool online: false
+    property string netDevice: ""
+    property string netAddress: ""
     property var prevCpu: null
 
     function parseStats(out) {
@@ -53,8 +58,22 @@ ShellRoot {
         root.prevCpu = { total: total, idle: idle };
 
         const kb = name => Number(((lines.find(l => l.startsWith(name)) || "").split(/\s+/))[1] || 0);
-        if (kb("MemTotal:") > 0)
+        if (kb("MemTotal:") > 0) {
             root.memPercent = Math.round(100 * (1 - kb("MemAvailable:") / kb("MemTotal:")));
+            root.memTotalGiB = kb("MemTotal:") / 1048576;
+            root.memUsedGiB = (kb("MemTotal:") - kb("MemAvailable:")) / 1048576;
+        }
+
+        const threads = lines.find(l => l.startsWith("NPROC "));
+        if (threads) root.cpuThreads = Number(threads.split(/\s+/)[1]);
+
+        // "ROUTE 1.1.1.1 via <gw> dev <iface> src <ip> ..." names the interface
+        // the internet goes through; its "ADDR" line gives the address/prefix.
+        const route = (lines.find(l => l.startsWith("ROUTE ")) || "").split(/\s+/);
+        const dev = route.indexOf("dev") >= 0 ? route[route.indexOf("dev") + 1] : "";
+        const addr = lines.find(l => l.startsWith("ADDR ") && l.split(/\s+/)[2] === dev);
+        root.netDevice = dev;
+        root.netAddress = addr ? (addr.split(/\s+/)[addr.split(/\s+/).indexOf("inet") + 1] || "") : "";
 
         const temp = lines.find(l => /^\d+$/.test(l));
         if (temp) root.tempC = Math.round(Number(temp) / 1000);
@@ -68,7 +87,10 @@ ShellRoot {
             "head -1 /proc/stat;" +
             " grep -E '^(MemTotal|MemAvailable):' /proc/meminfo;" +
             " for h in /sys/class/hwmon/*; do [ \"$(cat $h/name)\" = k10temp ] && cat $h/temp1_input; done;" +
-            " nmcli -t -f STATE general" ]
+            " nmcli -t -f STATE general;" +
+            " echo NPROC $(nproc);" +
+            " echo ROUTE $(ip -4 -o route get 1.1.1.1 2>/dev/null | head -1);" +
+            " ip -4 -o addr show | sed 's/^/ADDR /'" ]
         stdout: StdioCollector {
             onStreamFinished: root.parseStats(this.text)
         }
@@ -561,23 +583,75 @@ ShellRoot {
                         }
                     }
 
-                    // CPU, memory, temperature (primary bar only) and network
+                    // CPU, memory, temperature (primary bar only) and network,
+                    // each with a hover tooltip like waybar's. The model is just
+                    // the names: the delegates bind to the live values, so they
+                    // update in place instead of being rebuilt (which would close
+                    // an open tooltip) every 2s.
                     Repeater {
-                        model: [
-                            { glyph: 0xf4bc, value: root.cpuPercent + "%", primaryOnly: true },
-                            { glyph: 0xefc5, value: root.memPercent + "%", primaryOnly: true },
-                            { glyph: 0xf2c7, value: root.tempC + "°C", primaryOnly: true },
-                            { glyph: root.online ? 0xf0201 : 0xf0202,
-                              value: root.online ? "Connected" : "Disconnected", primaryOnly: false }
-                        ]
+                        model: [ "cpu", "memory", "temperature", "network" ]
 
                         Text {
-                            required property var modelData
-                            visible: bar.isPrimary || !modelData.primaryOnly
-                            text: String.fromCodePoint(modelData.glyph) + " " + modelData.value
+                            id: readout
+                            required property string modelData
+                            readonly property bool primaryOnly: modelData !== "network"
+                            readonly property int glyph: modelData === "cpu" ? 0xf4bc
+                                : modelData === "memory" ? 0xefc5
+                                : modelData === "temperature" ? 0xf2c7
+                                : root.online ? 0xf0201 : 0xf0202
+                            readonly property string value: modelData === "cpu" ? root.cpuPercent + "%"
+                                : modelData === "memory" ? root.memPercent + "%"
+                                : modelData === "temperature" ? root.tempC + "°C"
+                                : root.online ? "Connected" : "Disconnected"
+                            readonly property string tip: modelData === "cpu"
+                                    ? "CPU: " + root.cpuPercent + "% · " + root.cpuThreads + " threads"
+                                : modelData === "memory"
+                                    ? "RAM: " + root.memUsedGiB.toFixed(1) + " / " + root.memTotalGiB.toFixed(1) + " GiB (" + root.memPercent + "%)"
+                                : modelData === "temperature"
+                                    ? "CPU temperature (k10temp Tctl): " + root.tempC + "°C"
+                                : root.online ? root.netDevice + " · " + (root.netAddress || "no IPv4 address")
+                                : "Disconnected"
+
+                            visible: bar.isPrimary || !primaryOnly
+                            text: String.fromCodePoint(glyph) + " " + value
                             font.family: "JetBrainsMono Nerd Font"
                             font.pixelSize: 13
                             color: root.colorText
+
+                            MouseArea {
+                                id: readoutHover
+                                anchors.fill: parent
+                                hoverEnabled: true
+                            }
+
+                            PopupWindow {
+                                visible: readoutHover.containsMouse
+                                color: "transparent"
+                                implicitWidth: readoutTip.implicitWidth + 16
+                                implicitHeight: readoutTip.implicitHeight + 10
+                                anchor {
+                                    item: readout
+                                    edges: Edges.Bottom
+                                    gravity: Edges.Bottom
+                                    margins.top: 8
+                                }
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 6
+                                    color: root.colorSurface
+                                    border.width: 1
+                                    border.color: root.colorBorder
+
+                                    Text {
+                                        id: readoutTip
+                                        anchors.centerIn: parent
+                                        text: readout.tip
+                                        color: root.colorText
+                                        font.pixelSize: 12
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -645,6 +719,91 @@ ShellRoot {
                         Process {
                             id: pavucontrolProcess
                             command: [ "pavucontrol" ]
+                        }
+                    }
+
+                    // Microphone (default source), like waybar's format-source:
+                    // level, or a muted icon. Click toggles mute, scroll changes
+                    // the level, right-click opens pavucontrol; hover names the
+                    // active microphone.
+                    Item {
+                        id: micWidget
+                        implicitWidth: micText.implicitWidth + 4
+                        implicitHeight: 22
+
+                        property var source: Pipewire.defaultAudioSource
+                        readonly property bool ready: source && source.ready && source.audio
+
+                        PwObjectTracker {
+                            objects: [ Pipewire.defaultAudioSource ]
+                        }
+
+                        Text {
+                            id: micText
+                            anchors.centerIn: parent
+                            font.family: "JetBrainsMono Nerd Font"
+                            font.pixelSize: 13
+                            color: micWidget.ready && micWidget.source.audio.muted ? root.colorMuted : root.colorText
+                            text: {
+                                if (!micWidget.ready) return String.fromCodePoint(0xf131);
+                                if (micWidget.source.audio.muted) return String.fromCodePoint(0xf131);
+                                return String.fromCodePoint(0xf130) + " " + Math.round(micWidget.source.audio.volume * 100) + "%";
+                            }
+                        }
+
+                        MouseArea {
+                            id: micHover
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            onClicked: (mouse) => {
+                                if (mouse.button === Qt.RightButton) {
+                                    micPavucontrol.running = true;
+                                } else if (micWidget.ready) {
+                                    micWidget.source.audio.muted = !micWidget.source.audio.muted;
+                                }
+                            }
+                            onWheel: (wheel) => {
+                                if (!micWidget.ready) return;
+                                const step = wheel.angleDelta.y > 0 ? 0.05 : -0.05;
+                                micWidget.source.audio.volume = Math.max(0, Math.min(1.0, micWidget.source.audio.volume + step));
+                            }
+                        }
+
+                        Process {
+                            id: micPavucontrol
+                            command: [ "pavucontrol", "--tab=4" ]
+                        }
+
+                        PopupWindow {
+                            visible: micHover.containsMouse
+                            color: "transparent"
+                            implicitWidth: micTip.implicitWidth + 16
+                            implicitHeight: micTip.implicitHeight + 10
+                            anchor {
+                                item: micWidget
+                                edges: Edges.Bottom
+                                gravity: Edges.Bottom
+                                margins.top: 8
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 6
+                                color: root.colorSurface
+                                border.width: 1
+                                border.color: root.colorBorder
+
+                                Text {
+                                    id: micTip
+                                    anchors.centerIn: parent
+                                    color: root.colorText
+                                    font.pixelSize: 12
+                                    text: !micWidget.ready ? "No microphone"
+                                        : (micWidget.source.description || micWidget.source.nickname || micWidget.source.name)
+                                          + (micWidget.source.audio.muted ? " (muted)" : "")
+                                }
+                            }
                         }
                     }
 
