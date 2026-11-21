@@ -802,10 +802,8 @@ end)
 
 client.connect_signal("focus", function(c)
     c.border_color = beautiful.border_focus
-    c.border_width = dpi(3)
 end)
 client.connect_signal("unfocus", function(c)
     c.border_color = beautiful.border_normal
-    c.border_width = beautiful.border_width
 end)
 -- }}}

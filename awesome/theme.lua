@@ -42,7 +42,7 @@ theme.fg_urgent     = bg
 theme.fg_minimize   = muted
 
 theme.useless_gap   = dpi(4)
-theme.border_width  = dpi(2)
+theme.border_width  = dpi(3)
 theme.border_normal = border
 theme.border_focus  = blue
 theme.border_marked = orange
