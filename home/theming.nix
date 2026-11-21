@@ -1,5 +1,5 @@
 # GTK, Qt and cursor theme (matugen recolors GTK on top, see ./hyprland.nix).
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 
 {
   # Same theme, icons and font as the Arch setup. matugen layers the
@@ -41,11 +41,17 @@
     colorScheme = "dark";
   };
 
+  # Qt apps (OpenRGB, flameshot, ...) take their style, colors and icons
+  # from qt6ct -- Breeze, dark palette, Papirus-Dark, configured in
+  # ~/.config/qt6ct/qt6ct.conf (../hyprland/qt6ct/) -- in every session, so
+  # they look the same in Awesome as in Hyprland. home-manager's "qtct"
+  # names the qt5ct plugin, so the variable is pinned to qt6ct's own name.
+  # No style override: it would replace qt6ct's Breeze.
   qt = {
     enable = true;
-    platformTheme.name = "gtk3";
-    style.name = "adwaita-dark";
+    platformTheme.name = "qtct";
   };
+  home.sessionVariables.QT_QPA_PLATFORMTHEME = lib.mkForce "qt6ct";
 
   home.pointerCursor = {
     enable = true;
