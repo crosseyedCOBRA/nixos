@@ -195,7 +195,10 @@ end)
 -- Quickshell has no native Awesome IPC (unlike i3), so we push per-screen
 -- tag state out to a file it watches instead. Keyed by output name (e.g.
 -- "DisplayPort-0") so each monitor's bar shows that monitor's own tags
--- and its own current layout.
+-- and its own current layout -- and hides itself while that monitor shows
+-- a fullscreen window. Awesome keeps a fullscreen window above docks only
+-- while it has focus, so without that the bar would cover a fullscreen
+-- video as soon as you clicked onto another monitor.
 local tags_state_path = os.getenv("HOME") .. "/.cache/awesome/tags.json"
 
 local function dump_tags_state()
@@ -211,9 +214,13 @@ local function dump_tags_state()
                 ))
             end
             local layout_name = scr.selected_tag and awful.layout.getname(scr.selected_tag.layout) or ""
+            local fullscreen = false
+            for _, c in ipairs(scr.clients) do -- visible clients only
+                if c.fullscreen then fullscreen = true break end
+            end
             table.insert(screen_parts, string.format(
-                '%q:{"tags":[%s],"layout":%q}',
-                output_name, table.concat(tag_parts, ","), layout_name
+                '%q:{"tags":[%s],"layout":%q,"fullscreen":%s}',
+                output_name, table.concat(tag_parts, ","), layout_name, tostring(fullscreen)
             ))
         end
     end
@@ -227,6 +234,22 @@ end
 tag.connect_signal("property::selected", dump_tags_state)
 tag.connect_signal("property::urgent", dump_tags_state)
 tag.connect_signal("property::layout", dump_tags_state)
+-- Anything that can change whether a monitor shows a fullscreen window.
+-- Deferred to the end of the event loop pass, once Awesome has settled
+-- which clients are visible (e.g. a closing window is gone by then).
+local dump_queued = false
+local function queue_dump()
+    if dump_queued then return end
+    dump_queued = true
+    gears.timer.delayed_call(function()
+        dump_queued = false
+        dump_tags_state()
+    end)
+end
+for _, sig in ipairs({ "property::fullscreen", "property::minimized", "property::screen",
+                       "manage", "unmanage", "tagged", "untagged" }) do
+    client.connect_signal(sig, queue_dump)
+end
 dump_tags_state()
 -- }}}
 

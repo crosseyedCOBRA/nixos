@@ -134,6 +134,10 @@ ShellRoot {
             id: bar
             required property var modelData
             screen: modelData
+            // Hidden while this monitor shows a fullscreen window (rc.lua
+            // reports it), so the bar never covers a fullscreen video or
+            // game, focused or not.
+            visible: !((root.awesomeTags[modelData.name] || {}).fullscreen)
 
             anchors {
                 top: true
