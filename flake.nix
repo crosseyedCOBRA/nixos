@@ -16,6 +16,13 @@
 
     nix-flatpak.url = "github:gmodena/nix-flatpak";
 
+    # ZarisWM, my own X11 window manager (modules/zaris.nix builds it). After
+    # pushing changes there: `nix flake update zaris`.
+    zaris = {
+      url = "github:crosseyedCOBRA/zaris";
+      flake = false;
+    };
+
     # Secure Boot for NixOS (modules/boot.nix), so it keeps booting with
     # Secure Boot on -- which Windows' Vanguard anti-cheat requires.
     lanzaboote = {

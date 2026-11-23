@@ -6,6 +6,7 @@
   # (see ../configuration.nix's imports to bring it back).
   imports = [
     ./home/awesome.nix
+    ./home/zaris.nix
     ./home/streaming.nix
     ./home/theming.nix
     ./home/shell.nix

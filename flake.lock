@@ -205,7 +205,8 @@
         "nix-flatpak": "nix-flatpak",
         "nixpkgs": "nixpkgs",
         "quickshell": "quickshell",
-        "xlibre-overlay": "xlibre-overlay"
+        "xlibre-overlay": "xlibre-overlay",
+        "zaris": "zaris"
       }
     },
     "rust-overlay": {
@@ -249,6 +250,22 @@
         "ref": "dev-26.11",
         "type": "git",
         "url": "https://codeberg.org/takagemacoed/xlibre-overlay"
+      }
+    },
+    "zaris": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789531763,
+        "narHash": "sha256-bbtd4h9fS0+ub8fXBF1o1paRVbyBgrcqEnVmNk4IhkY=",
+        "owner": "crosseyedCOBRA",
+        "repo": "zaris",
+        "rev": "e36637f1d0ff908d03a8036c9df47d07185682c3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "crosseyedCOBRA",
+        "repo": "zaris",
+        "type": "github"
       }
     }
   },

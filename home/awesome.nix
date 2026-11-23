@@ -325,17 +325,19 @@ in
       After = [ "graphical-session.target" ];
     };
     Service = {
-      ExecStart = "${inputs.quickshell.packages.${pkgs.stdenv.hostPlatform.system}.default}/bin/quickshell -p %h/.config/quickshell/shell.qml";
+      ExecStart = "${inputs.quickshell.packages.${pkgs.stdenv.hostPlatform.system}.default}/bin/quickshell -p %h/.config/quickshell-awesome/shell.qml";
       Restart = "on-failure";
     };
   };
 
-  xdg.configFile."quickshell/shell.qml".source = ../quickshell/shell.qml;
-  xdg.configFile."quickshell/nix-snowflake-white.svg".source = ../assets/nix-snowflake-white.svg;
+  # Its own folder: ~/.config/quickshell belongs to ZarisWM's shell
+  # (./zaris.nix), which also writes its settings there.
+  xdg.configFile."quickshell-awesome/shell.qml".source = ../quickshell/shell.qml;
+  xdg.configFile."quickshell-awesome/nix-snowflake-white.svg".source = ../assets/nix-snowflake-white.svg;
   xdg.configFile."awesome/rc.lua".source = ../awesome/rc.lua;
   xdg.configFile."awesome/theme.lua".source = ../awesome/theme.lua;
   xdg.configFile."awesome/wallpaper.jpg".source = wallpaper;
-  xdg.configFile."quickshell/awesome-view-tag.sh" = {
+  xdg.configFile."quickshell-awesome/awesome-view-tag.sh" = {
     source = ../awesome/view-tag.sh;
     executable = true;
   };
