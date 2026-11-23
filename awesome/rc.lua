@@ -658,8 +658,12 @@ end
 
 -- Rules to apply to new clients (through the "manage" signal).
 awful.rules.rules = {
-    -- All clients will match this rule.
-    { rule = { },
+    -- All clients except the bars will match this rule. The bars
+    -- (quickshell's dock windows) position themselves on their own monitor;
+    -- this rule's screen = preferred (the focused monitor) and no_overlap
+    -- placement used to move a bar that reappeared after a fullscreen
+    -- window -- onto the wrong monitor, or below its own reserved strip.
+    { rule = { }, except = { type = "dock" },
       properties = { border_width = beautiful.border_width,
                      border_color = beautiful.border_normal,
                      focus = awful.client.focus.filter,
@@ -674,13 +678,9 @@ awful.rules.rules = {
     -- Panels/docks (quickshell): never focusable and no border. Without
     -- this, they're regular focusable clients sitting at the top of each
     -- screen, which is why modkey+Left/Right/Up/Down directional focus
-    -- would sometimes land on the bar instead of a real window. No
-    -- placement either: the bar positions itself, and the default rule's
-    -- no_overlap pushed a bar that reappeared (after a fullscreen window
-    -- left its monitor) down below its own reserved strip.
+    -- would sometimes land on the bar instead of a real window.
     { rule = { type = "dock" },
-      properties = { focusable = false, border_width = 0,
-                     placement = function() end }
+      properties = { focusable = false, border_width = 0 }
     },
 
     -- Floating clients.
@@ -768,20 +768,6 @@ client.connect_signal("manage", function (c)
         awful.placement.no_offscreen(c)
     end
 end)
-
--- Keep each bar (quickshell's dock windows) pinned to the top-left of its
--- own monitor. A bar that reappears after a fullscreen window leaves its
--- monitor gets managed again, and has been seen landing below its own
--- reserved strip; this puts it back whatever moved it.
-local function pin_dock(c)
-    if c.type ~= "dock" or not c.screen then return end
-    local s, g = c.screen.geometry, c:geometry()
-    if g.x ~= s.x or g.y ~= s.y then
-        c:geometry({ x = s.x, y = s.y })
-    end
-end
-client.connect_signal("manage", pin_dock)
-client.connect_signal("property::geometry", pin_dock)
 
 -- Zen (Firefox-family) restores its last window sizemode on launch, and
 -- if that was "maximized" it sends an EWMH maximize request on startup
