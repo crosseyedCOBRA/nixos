@@ -15,6 +15,22 @@
         "type": "github"
       }
     },
+    "dwm": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1795448865,
+        "narHash": "sha256-+b2NFjw3deugx9bDOAcadi9uIaPJNVT+TvUrCamucv4=",
+        "owner": "crosseyedCOBRA",
+        "repo": "dwm",
+        "rev": "21e2fea6eae8dd489322ab1e9eae7f7d0682320b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "crosseyedCOBRA",
+        "repo": "dwm",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -199,6 +215,7 @@
     },
     "root": {
       "inputs": {
+        "dwm": "dwm",
         "home-manager": "home-manager",
         "hyprland-dotfiles": "hyprland-dotfiles",
         "lanzaboote": "lanzaboote",

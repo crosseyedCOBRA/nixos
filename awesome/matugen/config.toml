@@ -36,6 +36,10 @@ output_path = "~/.config/dunst/dunstrc.d/50-colors.conf"
 input_path = "~/.config/matugen/awesome/templates/alacritty-colors.toml"
 output_path = "~/.config/alacritty/colors.toml"
 
+[templates.dwm]
+input_path = "~/.config/matugen/awesome/templates/dwm.Xresources"
+output_path = "~/.cache/awesome/dwm.Xresources"
+
 [templates.i3lock]
 input_path = "~/.config/matugen/awesome/templates/i3lock-colors.sh"
 output_path = "~/.cache/awesome/i3lock-colors.sh"

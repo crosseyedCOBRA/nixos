@@ -16,6 +16,14 @@
 
     nix-flatpak.url = "github:gmodena/nix-flatpak";
 
+    # My dwm: a fork of dwm-flexipatch with my patches and config.h
+    # (modules/dwm.nix builds it). Edit in ~/src/dwm, push, then
+    # `nix flake update dwm` to pick up the new commit.
+    dwm = {
+      url = "github:crosseyedCOBRA/dwm";
+      flake = false;
+    };
+
     # ZarisWM, my own X11 window manager (modules/zaris.nix builds it). After
     # pushing changes there: `nix flake update zaris`.
     zaris = {

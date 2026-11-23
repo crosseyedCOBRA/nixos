@@ -41,6 +41,17 @@ if ! matugen image -q -m dark --source-color-index 0 -c ~/.config/matugen/awesom
     exit 1
 fi
 
+# Outside Awesome (dwm), nothing else draws the wallpaper: set it on every
+# monitor, merge dwm's new colors, and restart a running dwm in place
+# (restartsig keeps its windows) so it reads them. Decided by the session
+# name: on NixOS Awesome's process is ".awesome-wrapped", so pgrep -x
+# awesome never matches.
+if [[ ${DESKTOP_SESSION:-} != *awesome* ]]; then
+    xwallpaper --zoom "$img" 2>/dev/null
+    [[ -e $cache/dwm.Xresources ]] && xrdb -merge "$cache/dwm.Xresources"
+    pkill -HUP -x dwm
+fi
+
 # rc.lua's awesome_apply_theme(): re-reads theme.lua (colors + wallpaper)
 # and repaints wallpapers and window borders. The quickshell bar watches
 # its colors file itself; alacritty reloads its imported colors on its own.

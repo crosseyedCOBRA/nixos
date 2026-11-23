@@ -8,6 +8,7 @@
     ./modules/desktop.nix
     ./modules/awesome.nix
     ./modules/zaris.nix
+    ./modules/dwm.nix
     # Hyprland is off (Awesome full-time since 2026-11-21). Its config is all
     # still here: re-add ./modules/hyprland.nix here and ./home/hyprland.nix
     # in ../home.nix to bring the session back.

@@ -7,6 +7,7 @@
   imports = [
     ./home/awesome.nix
     ./home/zaris.nix
+    ./home/dwm.nix
     ./home/streaming.nix
     ./home/theming.nix
     ./home/shell.nix
