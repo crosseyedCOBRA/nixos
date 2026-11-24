@@ -769,18 +769,34 @@ client.connect_signal("manage", function (c)
     end
 end)
 
--- Zen (Firefox-family) restores its last window sizemode on launch, and
--- if that was "maximized" it sends an EWMH maximize request on startup
--- that Awesome honors by default, floating it at full-monitor size --
--- outside the tile layout, so it renders like a fullscreen window and
--- new tiled clients stack oddly around it. Reject that specifically for
--- Zen; every other app's maximize (including the user manually maximizing
--- Zen mid-session) is unaffected.
-client.connect_signal("property::maximized", function(c)
-    if c.maximized and c.class and c.class:match("^[Zz]en") then
+-- Browsers and Electron apps (Zen, Brave, Vesktop, ...) remember being
+-- maximized when they close and ask for it again when they open. Awesome
+-- honors that by default: the window covers the whole monitor instead of
+-- tiling, and new windows open hidden behind it. So a tiled window's
+-- maximize requests in its first two seconds are ignored; maximizing it
+-- yourself later (Super+M) still works. Windows that open floating keep
+-- theirs. (That's checked when the window opens: Awesome counts a
+-- maximized window as floating by the time the request arrives.)
+local function refuse_startup_maximize(c)
+    if c.opening then
         c.maximized = false
+        c.maximized_vertical = false
+        c.maximized_horizontal = false
     end
+end
+client.connect_signal("manage", function(c)
+    c.opening = not c.floating or nil
+    refuse_startup_maximize(c) -- maximized already when it was mapped
+    gears.timer.start_new(2, function()
+        if c.valid then c.opening = nil end
+        return false
+    end)
 end)
+for _, prop in ipairs({ "maximized", "maximized_vertical", "maximized_horizontal" }) do
+    client.connect_signal("property::" .. prop, function(c)
+        if c[prop] then refuse_startup_maximize(c) end
+    end)
+end
 
 -- Add a titlebar if titlebars_enabled is set to true in the rules.
 client.connect_signal("request::titlebars", function(c)
