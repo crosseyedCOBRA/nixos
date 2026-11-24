@@ -18,24 +18,33 @@
     settings.default_session.command =
       let
         sessions = config.services.displayManager.sessionData.desktops;
+        # Awesome is the default every time the login screen comes up.
+        # tuigreet has no "default session" option, only --remember-session
+        # (the last pick, kept in this file), so the greeter resets that file
+        # to Awesome before it starts. F3 still picks another session for
+        # one login.
+        greeter = pkgs.writeShellScript "tuigreet-awesome-default" ''
+          printf '%s\n' ${sessions}/share/xsessions/none+awesome.desktop > /var/cache/tuigreet/lastsession-path
+          exec ${tuigreet} "$@"
+        '';
+        tuigreet = lib.concatStringsSep " " [
+          "${pkgs.tuigreet}/bin/tuigreet"
+          "--time"
+          "--remember --remember-session" # username sticky; session reset to Awesome above
+          "--xsessions ${sessions}/share/xsessions"
+          # startx alone runs the session's bare script, skipping NixOS's X
+          # session setup: no DISPLAY for systemd user services (quickshell,
+          # picom, dunst), no ~/.xprofile (home-manager's session variables),
+          # no nixos-fake-graphical-session.target. The wrapper does all of
+          # that and then execs the session.
+          "--xsession-wrapper 'startx ${config.services.displayManager.sessionData.wrapper}'"
+          "--sessions ${sessions}/share/wayland-sessions"
+          # No --cmd: tuigreet shows a raw --cmd as its full /nix/store path
+          # instead of a session name. Sessions are picked by name from the
+          # F3 menu (awesome, dwm, zaris, Hyprland, Steam).
+        ];
       in
-      lib.concatStringsSep " " [
-        "${pkgs.tuigreet}/bin/tuigreet"
-        "--time"
-        "--remember --remember-session" # sticky across reboots/logouts
-        "--xsessions ${sessions}/share/xsessions"
-        # startx alone runs the session's bare script, skipping NixOS's X
-        # session setup: no DISPLAY for systemd user services (quickshell,
-        # picom, dunst), no ~/.xprofile (home-manager's session variables),
-        # no nixos-fake-graphical-session.target. The wrapper does all of
-        # that and then execs the session.
-        "--xsession-wrapper 'startx ${config.services.displayManager.sessionData.wrapper}'"
-        "--sessions ${sessions}/share/wayland-sessions"
-        # No --cmd: tuigreet shows a raw --cmd as its full /nix/store path
-        # instead of a session name. Sessions are picked by name from the
-        # F3 menu (Hyprland, awesome, Steam), and --remember-session keeps
-        # the last pick.
-      ];
+      "${greeter}";
   };
   # greetd.service's own systemd PATH is a minimal curated list (coreutils/
   # findutils/grep/sed/systemd only, no /run/current-system/sw/bin).
