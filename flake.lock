@@ -18,11 +18,11 @@
     "dwm": {
       "flake": false,
       "locked": {
-        "lastModified": 1795448865,
-        "narHash": "sha256-+b2NFjw3deugx9bDOAcadi9uIaPJNVT+TvUrCamucv4=",
+        "lastModified": 1795450495,
+        "narHash": "sha256-5flILgJG4DmJxT0ekqqRSp426hgsJmaKg9fBqw1D4wU=",
         "owner": "crosseyedCOBRA",
         "repo": "dwm",
-        "rev": "21e2fea6eae8dd489322ab1e9eae7f7d0682320b",
+        "rev": "1670df899ffe3d880c86d4e4d1f689d6ca338714",
         "type": "github"
       },
       "original": {

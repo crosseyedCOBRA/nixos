@@ -104,7 +104,8 @@ ShellRoot {
     }
 
     // Awesome has no native IPC, so its rc.lua pushes per-screen tag state
-    // to this file (keyed by output name) whenever it changes.
+    // to this file (keyed by output name) whenever it changes. In dwm,
+    // dwm-bar-state (../home/dwm.nix) writes the same file from dwm's IPC.
     FileView {
         id: awesomeTagsFile
         path: Quickshell.env("HOME") + "/.cache/awesome/tags.json"

@@ -1,11 +1,14 @@
 # dwm (my fork of dwm-flexipatch, the `dwm` flake input): built with
 # nixpkgs' dwm recipe from that source, and offered as a "dwm" session.
-# Its startup script and status text are in ../home/dwm.nix.
+# Its startup script and helper scripts are in ../home/dwm.nix.
 { pkgs, inputs, ... }:
 
 let
   dwm = (pkgs.dwm.override {
-    extraLibs = [ pkgs.libxcb ]; # xcb-res, for the swallow patch
+    extraLibs = [
+      pkgs.libxcb # xcb-res, for the swallow patch
+      pkgs.yajl # JSON, for the IPC patch (dwm-msg; the quickshell bar uses it)
+    ];
   }).overrideAttrs (old: {
     src = inputs.dwm;
     # nixpkgs' postPatch copies its own config.def.h over; the fork's
