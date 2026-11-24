@@ -220,6 +220,10 @@ in
       # Frosted glass behind see-through windows (alacritty's 95% opacity),
       # about Hyprland's blur strength. Only translucent windows show it.
       # Not behind the bar (opaque anyway) or flameshot's capture overlay.
+      # Nor behind menus and tooltips: browsers (Brave, Zen) draw their
+      # menus with a see-through margin for a shadow of their own, and the
+      # blur showed through it as a frosted ring around every menu. The
+      # last rule is GTK apps' own shadow margin around their windows.
       blur = {
         method = "dual_kawase";
         strength = 4;
@@ -228,6 +232,12 @@ in
         "window_type = 'dock'"
         "window_type = 'desktop'"
         "class_g = 'flameshot'"
+        "window_type = 'popup_menu'"
+        "window_type = 'dropdown_menu'"
+        "window_type = 'menu'"
+        "window_type = 'tooltip'"
+        "window_type = 'combo'"
+        "_GTK_FRAME_EXTENTS@"
       ];
     };
   };
@@ -235,6 +245,11 @@ in
   # reaches too -- there picom found XWayland's compositor already running
   # and failed, restarting forever.
   systemd.user.services.picom.Install.WantedBy = lib.mkForce [ ];
+  # Restart=always restarted it when Awesome's X server went away at
+  # logout, and if Hyprland came next it failed against XWayland every 3
+  # seconds for the whole session. Restart only after a crash; the next
+  # Awesome login starts it again anyway.
+  systemd.user.services.picom.Service.Restart = lib.mkForce "on-abnormal";
   # The picom package's XDG autostart entry, which the X session runs, would
   # start a second picom that holds the screen before this unit's.
   xdg.configFile."autostart/picom.desktop".text = ''
