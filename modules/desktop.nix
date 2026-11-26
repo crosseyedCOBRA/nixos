@@ -18,19 +18,19 @@
     settings.default_session.command =
       let
         sessions = config.services.displayManager.sessionData.desktops;
-        # Awesome is the default every time the login screen comes up.
+        # Hyprland is the default every time the login screen comes up.
         # tuigreet has no "default session" option, only --remember-session
         # (the last pick, kept in this file), so the greeter resets that file
-        # to Awesome before it starts. F3 still picks another session for
+        # to Hyprland before it starts. F3 still picks another session for
         # one login.
-        greeter = pkgs.writeShellScript "tuigreet-awesome-default" ''
-          printf '%s\n' ${sessions}/share/xsessions/none+awesome.desktop > /var/cache/tuigreet/lastsession-path
+        greeter = pkgs.writeShellScript "tuigreet-hyprland-default" ''
+          printf '%s\n' ${sessions}/share/wayland-sessions/hyprland.desktop > /var/cache/tuigreet/lastsession-path
           exec ${tuigreet} "$@"
         '';
         tuigreet = lib.concatStringsSep " " [
           "${pkgs.tuigreet}/bin/tuigreet"
           "--time"
-          "--remember --remember-session" # username sticky; session reset to Awesome above
+          "--remember --remember-session" # username sticky; session reset to Hyprland above
           "--xsessions ${sessions}/share/xsessions"
           # startx alone runs the session's bare script, skipping NixOS's X
           # session setup: no DISPLAY for systemd user services (quickshell,
@@ -41,7 +41,7 @@
           "--sessions ${sessions}/share/wayland-sessions"
           # No --cmd: tuigreet shows a raw --cmd as its full /nix/store path
           # instead of a session name. Sessions are picked by name from the
-          # F3 menu (awesome, dwm, zaris, Hyprland, Steam).
+          # F3 menu (awesome, dwm, zaris, Hyprland, COSMIC, Steam).
         ];
       in
       "${greeter}";
@@ -68,7 +68,7 @@
   # (only LightDM/GDM/SDDM read it) -- kept for the sessionNames
   # assertion. What tuigreet starts is the session last picked in its F3
   # menu (--remember-session), not this option.
-  services.displayManager.defaultSession = "none+awesome";
+  services.displayManager.defaultSession = "hyprland";
 
   # --- Theming ---
   # Required by home-manager's `dconf.settings` (used for GTK dark mode).
@@ -79,7 +79,15 @@
   xdg.portal = {
     enable = true;
     extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
-    config.common.default = "*";
+    # Each desktop gets its own portals. "*" (any installed portal) let
+    # COSMIC's portal start in Hyprland and Awesome too: it held up every
+    # Hyprland login by about 6 seconds, and could take over screen sharing
+    # and file dialogs outside COSMIC.
+    config = {
+      common.default = [ "gtk" ]; # Awesome, dwm, Zaris
+      hyprland.default = [ "hyprland" "gtk" ];
+      COSMIC.default = [ "cosmic" "gtk" ];
+    };
   };
 
   # --- Fonts ---
