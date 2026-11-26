@@ -56,7 +56,7 @@ in
     gnome-calculator
     loupe # image viewer, default for image/* via ~/.config/mimeapps.list
     vscodium
-    libreoffice-fresh # office suite (latest feature branch)
+    libreoffice # office suite
     # Spell checking for LibreOffice: it finds hunspell dictionaries in the
     # system profile, and nixpkgs' LibreOffice ships none of its own.
     hunspell
