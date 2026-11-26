@@ -775,8 +775,9 @@ end)
 -- tiling, and new windows open hidden behind it. So a tiled window's
 -- maximize requests in its first two seconds are ignored; maximizing it
 -- yourself later (Super+M) still works. Windows that open floating keep
--- theirs. (That's checked when the window opens: Awesome counts a
--- maximized window as floating by the time the request arrives.)
+-- theirs: dialogs, and the apps the floating rule above lists. (Not
+-- c.floating: Awesome reports any maximized window as floating, and Zen is
+-- maximized before it even opens.)
 local function refuse_startup_maximize(c)
     if c.opening then
         c.maximized = false
@@ -785,7 +786,9 @@ local function refuse_startup_maximize(c)
     end
 end
 client.connect_signal("manage", function(c)
-    c.opening = not c.floating or nil
+    local floats = awful.client.property.get(c, "floating") -- set by a rule
+        or c.type ~= "normal" or c.transient_for ~= nil
+    c.opening = not floats or nil
     refuse_startup_maximize(c) -- maximized already when it was mapped
     gears.timer.start_new(2, function()
         if c.valid then c.opening = nil end
