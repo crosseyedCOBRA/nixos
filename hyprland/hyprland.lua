@@ -322,6 +322,14 @@ hl.config({
         disable_hyprland_logo    = true, -- If true disables the random hyprland logo / anime girl background. :(
         disable_splash_rendering = true, -- If true disables the random splash text (e.g. "better call vaxry") at the bottom of the screen
     },
+
+    -- Hyprland switches a monitor into HDR mode whenever a fullscreen app
+    -- asks for HDR (games, video players, browsers playing HDR video),
+    -- which isn't wanted here. 0 keeps the monitors in normal (SDR) mode;
+    -- set it back to 1 to allow the switch.
+    render = {
+        cm_auto_hdr = 0,
+    },
 })
 
 
