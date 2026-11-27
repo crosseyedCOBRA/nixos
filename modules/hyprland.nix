@@ -11,12 +11,12 @@
   # Config lives in ../hyprland/ (see ../home/hyprland.nix for how its deployed).
   programs.hyprland.enable = true;
 
-  # Same PAM requirement as i3lock (./awesome.nix), for hyprlock (Hyprland session,
-  # see ../hyprland/hyprlock.conf). Deliberately not programs.hyprlock.enable:
+  # hyprlock (the lock screen in Hyprland and dwl, see ../hyprland/hyprlock.conf)
+  # needs a PAM stack to check passwords. Deliberately not programs.hyprlock.enable:
   # that module also force-enables services.hypridle (idle-triggered
   # auto-lock/DPMS), which nothing here asked for and which conflicts with
   # this system's existing "screens never auto-blank, only the lock script
-  # re-enables DPMS" design (see rc.lua/../home/awesome.nix's lock-screen). Just the
+  # turns them off" design (hyprlock-timeout, dwl-lock). Just the
   # PAM stack is needed for a manually-invoked hyprlock to authenticate.
   security.pam.services.hyprlock = { };
 

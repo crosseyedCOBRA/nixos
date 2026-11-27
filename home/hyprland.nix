@@ -20,7 +20,7 @@ in
     hyprpaper
     hyprlock
     hypridle # monitor timeout while locked only, see ../hyprland/bin/hyprlock-timeout
-    swaynotificationcenter # notification daemon, no Wayland/layer-shell support in dunst (Awesome's daemon)
+    swaynotificationcenter # notifications (Hyprland and dwl)
     grim # screenshot capture, see ../hyprland/bin/screenshot-region
     slurp # region selector for screenshot-region
     wl-clipboard # wl-copy/wl-paste, used by screenshot-region and cliphist
@@ -31,10 +31,10 @@ in
   ] ++ hyprScripts;
 
   # Polkit agent for the Hyprland session (started from hyprland.lua's
-  # autostart). The Awesome session uses polkit_gnome (./awesome.nix).
+  # autostart). dwl uses polkit-gnome (./dwl.nix).
   services.hyprpolkitagent.enable = true;
   # hyprland.lua starts it; via graphical-session.target it would also start
-  # in Awesome, which has its own X11 agent (polkit_gnome).
+  # in dwl, where it crashes (an OpenGL assertion outside Hyprland).
   systemd.user.services.hyprpolkitagent.Install.WantedBy = lib.mkForce [ ];
 
   # fastfetch/config.jsonc is deliberately NOT deployed here anymore --
@@ -99,7 +99,7 @@ in
     (builtins.readFile ../hyprland/swaync/style.css);
 
   # Folders Hyprland's color templates render into (apply-colors); matugen
-  # won't create them itself. The app config shared with Awesome (Qt theme,
+  # won't create them itself. The app config shared with dwl (Qt theme,
   # wallpapers, kdeglobals, btop, MangoHud, Vesktop) is in ./theming.nix.
   home.activation.hyprlandThemeDirs = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     run mkdir -p "$HOME/.cache/hypr" "$HOME/.config/swayosd"

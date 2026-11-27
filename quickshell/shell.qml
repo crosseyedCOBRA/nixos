@@ -103,9 +103,8 @@ ShellRoot {
         onTriggered: statsProcess.running = true
     }
 
-    // Awesome has no native IPC, so its rc.lua pushes per-screen tag state
-    // to this file (keyed by output name) whenever it changes. In dwm,
-    // dwm-bar-state (../home/dwm.nix) writes the same file from dwm's IPC.
+    // Per-monitor tag state (keyed by output name), written by
+    // dwl-bar-state (../home/dwl.nix) from dwl's IPC whenever it changes.
     FileView {
         id: awesomeTagsFile
         path: Quickshell.env("HOME") + "/.cache/awesome/tags.json"
@@ -126,18 +125,17 @@ ShellRoot {
     }
 
     Variants {
-        // HDMI-A-0 mirrors DisplayPort-0 (--same-as in the xrandr setup), so
-        // it reports as its own screen too; without this filter it would
-        // get a second PanelWindow drawn on top of DisplayPort-0's.
-        model: Quickshell.screens.filter(screen => screen.name !== "HDMI-A-0")
+        // One bar per monitor. dwl's HDMI mirror isn't a monitor to clients,
+        // so it never gets one of its own.
+        model: Quickshell.screens
 
         PanelWindow {
             id: bar
             required property var modelData
             screen: modelData
-            // Hidden while this monitor shows a fullscreen window (rc.lua
-            // reports it), so the bar never covers a fullscreen video or
-            // game, focused or not.
+            // Hidden while this monitor shows a fullscreen window
+            // (dwl-bar-state reports it), so the bar never covers a
+            // fullscreen video or game, focused or not.
             visible: !((root.awesomeTags[modelData.name] || {}).fullscreen)
 
             anchors {
@@ -150,9 +148,8 @@ ShellRoot {
 
             // The primary monitor's bar gets the full set of readouts, the
             // others a reduced one -- the same split as waybar's config.
-            // The main monitor: DisplayPort-0 in the X sessions (amdgpu's X
-            // driver names), DP-1 on Wayland (dwl, the kernel's names).
-            readonly property bool isPrimary: modelData.name === "DisplayPort-0" || modelData.name === "DP-1"
+            // The main monitor
+            readonly property bool isPrimary: modelData.name === "DP-1"
 
             Item {
                 anchors.fill: parent
@@ -270,12 +267,10 @@ ShellRoot {
                             anchors.margins: -4
                             onClicked: screenshotProcess.running = true
                         }
-                        // Wayland (dwl): grim + slurp (screenshot-region, from
-                        // ../hyprland/bin); X (dwm): flameshot.
+                        // grim + slurp (screenshot-region, ../hyprland/bin)
                         Process {
                             id: screenshotProcess
-                            command: [ "sh", "-c",
-                                "if [ -n \"$WAYLAND_DISPLAY\" ]; then exec screenshot-region; else exec flameshot gui; fi" ]
+                            command: [ "screenshot-region" ]
                         }
                     }
 
@@ -291,12 +286,12 @@ ShellRoot {
                             anchors.margins: -4
                             onClicked: clipboardProcess.running = true
                         }
-                        // Wayland (dwl): cliphist's history in rofi (dwl's
-                        // cliphist service records it); X (dwm): clipmenu.
+                        // cliphist's history in rofi (dwl's cliphist service
+                        // records it)
                         Process {
                             id: clipboardProcess
                             command: [ "sh", "-c",
-                                "if [ -n \"$WAYLAND_DISPLAY\" ]; then cliphist list | rofi -dmenu -i -p Clipboard | cliphist decode | wl-copy; else exec clipmenu; fi" ]
+                                "cliphist list | rofi -dmenu -i -p Clipboard | cliphist decode | wl-copy" ]
                         }
                     }
                 }

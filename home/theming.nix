@@ -45,7 +45,7 @@
   # Qt apps (OpenRGB, flameshot, ...) take their style, colors and icons
   # from qt6ct -- Breeze, dark palette, Papirus-Dark, configured in
   # ~/.config/qt6ct/qt6ct.conf (../hyprland/qt6ct/) -- in every session, so
-  # they look the same in Awesome as in Hyprland. home-manager's "qtct"
+  # they look the same in dwl as in Hyprland. home-manager's "qtct"
   # names the qt5ct plugin, so the variable is pinned to qt6ct's own name.
   # No style override: it would replace qt6ct's Breeze.
   qt = {

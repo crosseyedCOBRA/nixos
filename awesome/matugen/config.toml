@@ -1,8 +1,8 @@
-# matugen config for the Awesome session -- run by awesome-colors
-# (../bin/awesome-colors) on each wallpaper: Awesome's own templates below,
-# then the app ones (GTK, starship, fastfetch, btop, Vesktop), whose
-# templates are shared with Hyprland's config (../../hyprland/matugen/) and
-# deployed to ~/.config/matugen/awesome/apps/ by home/awesome.nix.
+# matugen config run by awesome-colors (../bin/awesome-colors) on each
+# wallpaper, for dwl: the bar, rofi and alacritty templates below, then the
+# app ones (GTK, starship, fastfetch, btop, Vesktop, swaync, hyprlock),
+# whose templates are shared with Hyprland's config (../../hyprland/matugen/)
+# and deployed to ~/.config/matugen/awesome/apps/ by home/awesome.nix.
 
 [config]
 
@@ -16,10 +16,6 @@ blue = { color = "#4aa5f0", blend = true }
 magenta = { color = "#c162de", blend = true }
 cyan = { color = "#42b3c2", blend = true }
 
-[templates.awesome]
-input_path = "~/.config/matugen/awesome/templates/colors.lua"
-output_path = "~/.cache/awesome/colors.lua"
-
 [templates.quickshell]
 input_path = "~/.config/matugen/awesome/templates/colors.json"
 output_path = "~/.cache/awesome/colors.json"
@@ -28,22 +24,17 @@ output_path = "~/.cache/awesome/colors.json"
 input_path = "~/.config/matugen/awesome/templates/rofi-colors.rasi"
 output_path = "~/.cache/awesome/rofi-colors.rasi"
 
+[templates.hyprlock]
+input_path = "~/.config/matugen/awesome/apps/hyprlock-colors.conf"
+output_path = "~/.cache/hypr/hyprlock-colors.conf"
+
 [templates.swaync]
 input_path = "~/.config/matugen/awesome/apps/colors.css"
 output_path = "~/.config/hypr/colors.css"
 
-[templates.dunst]
-input_path = "~/.config/matugen/awesome/templates/dunst-colors.conf"
-output_path = "~/.config/dunst/dunstrc.d/50-colors.conf"
-
 [templates.alacritty]
 input_path = "~/.config/matugen/awesome/templates/alacritty-colors.toml"
 output_path = "~/.config/alacritty/colors.toml"
-
-
-[templates.i3lock]
-input_path = "~/.config/matugen/awesome/templates/i3lock-colors.sh"
-output_path = "~/.cache/awesome/i3lock-colors.sh"
 
 # --- Apps ---
 

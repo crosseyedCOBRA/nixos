@@ -35,6 +35,19 @@ fi
 
 printf '%s\n' "$img" > "$cache/current-wallpaper"
 
+# The lock screen's background (hyprlock sources it, ../../hyprland/
+# hyprlock.conf; its colors come from matugen below), as Hyprland's
+# apply-colors writes it.
+mkdir -p ~/.cache/hypr
+cat > ~/.cache/hypr/hyprlock-wallpaper.conf <<EOF
+background {
+    monitor =
+    path = $img
+    blur_passes = 2
+    blur_size = 6
+}
+EOF
+
 # --source-color-index: matugen refuses to guess between candidate colors
 # without a terminal to prompt on, which is always the case here.
 if ! matugen image -q -m dark --source-color-index 0 -c ~/.config/matugen/awesome.toml "$img" </dev/null; then
@@ -55,11 +68,6 @@ for sock in /tmp/kitty-*; do
     [[ -S $sock ]] && kitty @ --to "unix:$sock" set-colors --all --configured ~/.config/kitty/colors.conf
 done
 
-# Only the notification daemon that's running: dunstctl alone would start
-# dunst through D-Bus in dwl, where swaync holds the notifications.
-pgrep -x dunst >/dev/null && dunstctl reload >/dev/null 2>&1
 pgrep -x swaync >/dev/null && swaync-client --reload-css >/dev/null 2>&1
-
-setsid -f lock-screen --prepare >/dev/null 2>&1
 
 exit 0

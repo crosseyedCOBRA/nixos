@@ -6,7 +6,6 @@
     ./modules/boot.nix
     ./modules/hardware.nix
     ./modules/desktop.nix
-    ./modules/awesome.nix
     ./modules/dwl.nix
     ./modules/hyprland.nix
     ./modules/services.nix

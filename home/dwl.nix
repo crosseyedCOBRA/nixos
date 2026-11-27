@@ -80,9 +80,56 @@ let
     Unit.After = [ "dwl-session.target" ];
     Install.WantedBy = [ "dwl-session.target" ];
   };
+
+  # While locked only: the monitors turn off after a minute without input,
+  # and any key or mouse movement wakes them (wlopm: dwl's output power
+  # control; Hyprland's version uses hyprctl). Unlocked, they never blank.
+  idleLocked = pkgs.writeText "dwl-hypridle-locked.conf" ''
+    general {
+        # Locked means away: a paused video, a game or Discord holding an
+        # idle inhibitor shouldn't keep the monitors on behind the lock.
+        ignore_dbus_inhibit = true
+        ignore_systemd_inhibit = true
+        ignore_wayland_inhibit = true
+        inhibit_sleep = 0
+    }
+
+    listener {
+        timeout = 60
+        on-timeout = ${pkgs.wlopm}/bin/wlopm --off '*'
+        on-resume = ${pkgs.wlopm}/bin/wlopm --on '*'
+    }
+  '';
+
+  # Super+L and the power menu's Lock: dwl's version of Hyprland's
+  # hyprlock-timeout. hyprlock with the current wallpaper and colors
+  # (awesome-colors writes them to ~/.cache/hypr/).
+  dwlLock = pkgs.writeShellScriptBin "dwl-lock" ''
+    pgrep -x hyprlock >/dev/null && exit 0
+
+    ${pkgs.hypridle}/bin/hypridle -c ${idleLocked} >/dev/null 2>&1 &
+    idle=$!
+
+    ${pkgs.hyprlock}/bin/hyprlock
+
+    kill "$idle" 2>/dev/null
+    # Unlocking takes a keypress, which already woke the monitors; this
+    # covers hyprlock exiting some other way while they were off.
+    ${pkgs.wlopm}/bin/wlopm --on '*'
+  '';
+
+  # Ends the session's services when dwl quits. nixpkgs' dwl session starts
+  # dwl-session.target with dwl, but nothing stops it after: at logout the
+  # bar and the rest kept restarting with no compositor until systemd gave
+  # up on them, and the next login came up without a bar. dwl starts this
+  # (config.h's autostart) and sends it SIGTERM at exit, waiting for it.
+  dwlSessionGuard = pkgs.writeShellScriptBin "dwl-session-guard" ''
+    trap 'systemctl --user stop dwl-session.target graphical-session.target; exit 0' TERM INT HUP
+    while :; do sleep 3600 & wait $!; done
+  '';
 in
 {
-  home.packages = [ dwlmsg dwlBarState pkgs.swaybg ];
+  home.packages = [ dwlmsg dwlBarState dwlLock dwlSessionGuard pkgs.swaybg ];
 
   systemd.user.services.dwl-bar-state = lib.recursiveUpdate inDwl {
     Unit.Description = "dwl state for the quickshell bar (tags.json)";
@@ -152,6 +199,8 @@ in
     };
   };
 
-  # The bar (../home/awesome.nix defines it) joins the dwl session as well.
+  # The bar (../home/awesome.nix defines it) joins the dwl session as well,
+  # and stops with it.
   systemd.user.services.quickshell.Install.WantedBy = [ "dwl-session.target" ];
+  systemd.user.services.quickshell.Unit.PartOf = [ "dwl-session.target" ];
 }

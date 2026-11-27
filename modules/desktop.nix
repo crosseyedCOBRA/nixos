@@ -1,17 +1,10 @@
-# Shared by both sessions: the greetd/tuigreet login screen, portals,
-# fonts and theming plumbing.
+# Shared by both sessions (dwl, Hyprland): the greetd/tuigreet login
+# screen, portals, fonts and theming plumbing.
 { config, lib, pkgs, username, ... }:
 
 {
-  # lightdm cannot launch Hyprland (or any Wayland session) at all -- it
-  # has no mechanism to start a Wayland compositor, only X. greetd+tuigreet
-  # is the fix: tuigreet has *separate* `-x/--xsessions` (auto-wrapped with
-  # `startx`, which itself starts the X server and sets up Xauthority) and
-  # `-s/--sessions` (Wayland, run directly) flags, and routing each
-  # session through the flag matching its actual type is what makes both
-  # Awesome and Hyprland work from the same greeter. Verified via
-  # journalctl: real successful logins across multiple boots, not just a
-  # config that looks right on paper.
+  # greetd + tuigreet: a text login screen that starts Wayland sessions
+  # directly (`--sessions`).
   services.greetd = {
     enable = true;
     useTextGreeter = true;
@@ -30,13 +23,6 @@
           "${pkgs.tuigreet}/bin/tuigreet"
           "--time"
           "--remember --remember-session" # username sticky; session reset to dwl above
-          "--xsessions ${sessions}/share/xsessions"
-          # startx alone runs the session's bare script, skipping NixOS's X
-          # session setup: no DISPLAY for systemd user services (quickshell,
-          # picom, dunst), no ~/.xprofile (home-manager's session variables),
-          # no nixos-fake-graphical-session.target. The wrapper does all of
-          # that and then execs the session.
-          "--xsession-wrapper 'startx ${config.services.displayManager.sessionData.wrapper}'"
           "--sessions ${sessions}/share/wayland-sessions"
           # No --cmd: tuigreet shows a raw --cmd as its full /nix/store path
           # instead of a session name. Sessions are picked by name from the
@@ -47,9 +33,6 @@
   };
   # greetd.service's own systemd PATH is a minimal curated list (coreutils/
   # findutils/grep/sed/systemd only, no /run/current-system/sw/bin).
-  # `startx`'s own script shells out to more tools by bare name: `xinit`
-  # (does the real work, ships alongside startx), `xauth` (sets up the X
-  # cookie), and `hexdump` (generates it -- a *hard* `exit 1` if missing).
   # Hyprland's own `start-hyprland` launcher execs the real `Hyprland`
   # compositor binary by bare name too, and once running, hyprland.lua's
   # autostart (waybar/hyprpaper/wofi-power/hyprlock) execs *those* by bare
@@ -59,9 +42,6 @@
   systemd.services.greetd.path = [
     config.system.path
     config.home-manager.users.${username}.home.profileDirectory
-    pkgs.xauth
-    pkgs.util-linux # hexdump
-    pkgs.kbd # deallocvt, startx's cleanup step -- degrades gracefully if missing, included anyway
   ];
   # services.displayManager.defaultSession isnt consulted by greetd/tuigreet
   # (only LightDM/GDM/SDDM read it) -- kept for the sessionNames
@@ -82,8 +62,15 @@
     # another desktop's portal (COSMIC's) start in Hyprland too: it held up
     # every login by about 6 seconds and could take over screen sharing.
     config = {
-      common.default = [ "gtk" ]; # dwl (and anything without its own)
+      common.default = [ "gtk" ];
       hyprland.default = [ "hyprland" "gtk" ];
+      # dwl: GTK for file dialogs and the rest, wlroots' portal for screen
+      # sharing and screenshots (../modules/dwl.nix)
+      dwl = {
+        default = [ "gtk" ];
+        "org.freedesktop.impl.portal.ScreenCast" = [ "wlr" ];
+        "org.freedesktop.impl.portal.Screenshot" = [ "wlr" ];
+      };
     };
   };
 

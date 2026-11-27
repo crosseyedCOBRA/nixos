@@ -28,7 +28,6 @@ in
     vim
     fastfetch
     wget
-    xinit # provides `startx`, tuigreet's default X11 session wrapper (see services.greetd in ./desktop.nix)
     curl
     git
     gh

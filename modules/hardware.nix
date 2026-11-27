@@ -7,18 +7,6 @@
     enable = true;
     enable32Bit = true; # 32-bit libs, e.g. for Steam/Wine
   };
-  services.xserver.videoDrivers = [ "amdgpu" ];
-  # Software cursor in the X sessions (Awesome, dwm, Zaris). On this RDNA3
-  # card every hardware cursor move costs ~1 ms of busy CPU in the kernel
-  # (amdgpu leaves the display's idle power state for each one:
-  # dc_stream_program_cursor_position -> dmub_srv_wait_for_idle). X makes
-  # one such call per mouse report per screen, so with the HDMI mirror on it
-  # couldn't keep up with the ~900 Hz mouse and lagged. A software cursor
-  # never makes that call (measured: 0 calls, lag gone; 2026-11-26).
-  # Wayland sessions aren't affected.
-  services.xserver.deviceSection = ''
-    Option "SWcursor" "on"
-  '';
   hardware.amdgpu.overdrive.enable = true; # required for LACT to actually overclock on AMD
   # The Arch setup's mask: the kernel default plus the overdrive bit. NixOS's
   # own default (0xfffd7fff) also turns off GFXOFF and stutter mode, which
