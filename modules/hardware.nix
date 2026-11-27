@@ -38,6 +38,21 @@
     alsa.enable = true;
     alsa.support32Bit = true;
     pulse.enable = true;
+    # The start of sounds got cut off on the HyperX Cloud
+    # MIX 2 (USB dongle). WirePlumber suspends an output after ~5 s of
+    # silence, and waking the dongle and headset back up swallows the first
+    # bit of the next sound. 0 = never suspend: USB/analog outputs (ALSA)
+    # and Bluetooth ones.
+    wireplumber.extraConfig."51-disable-suspend" = {
+      "monitor.alsa.rules" = [{
+        matches = [ { "node.name" = "~alsa_output.*"; } ];
+        actions.update-props."session.suspend-timeout-seconds" = 0;
+      }];
+      "monitor.bluez.rules" = [{
+        matches = [ { "node.name" = "~bluez_output.*"; } ];
+        actions.update-props."session.suspend-timeout-seconds" = 0;
+      }];
+    };
   };
 
   # --- Bluetooth ---
