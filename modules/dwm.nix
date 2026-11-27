@@ -8,6 +8,7 @@ let
     extraLibs = [
       pkgs.libxcb # xcb-res, for the swallow patch
       pkgs.yajl # JSON, for the IPC patch (dwm-msg; the quickshell bar uses it)
+      pkgs.libxcursor # cursor theme (Bibata) for dwm's own cursors, see drw.c
     ];
   }).overrideAttrs (old: {
     src = inputs.dwm;
