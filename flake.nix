@@ -16,27 +16,12 @@
 
     nix-flatpak.url = "github:gmodena/nix-flatpak";
 
-    # My dwm: a fork of dwm-flexipatch with my patches and config.h
-    # (modules/dwm.nix builds it). Edit in ~/src/dwm, push, then
-    # `nix flake update dwm` to pick up the new commit.
-    dwm = {
-      url = "github:crosseyedCOBRA/dwm";
-      flake = false;
-    };
-
     # My dwl (dwm for Wayland): dwl v0.9 with dwl-patches and my config.h,
-    # plus native HDMI mirroring to come (modules/dwl.nix builds it). The
+    # plus my native HDMI mirroring (modules/dwl.nix builds it). The
     # local repo for now, while it's a prototype: commit in ~/src/dwl, then
     # `nix flake update dwl`. Moves to github:crosseyedCOBRA/dwl once pushed.
     dwl = {
       url = "git+file:///home/mike/src/dwl";
-      flake = false;
-    };
-
-    # ZarisWM, my own X11 window manager (modules/zaris.nix builds it). After
-    # pushing changes there: `nix flake update zaris`.
-    zaris = {
-      url = "github:crosseyedCOBRA/zaris";
       flake = false;
     };
 

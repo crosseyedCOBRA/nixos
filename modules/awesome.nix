@@ -1,4 +1,6 @@
-# The X11 server for the X sessions (dwm, Zaris; XLibre, see flake.nix).
+# The X11 server (XLibre, see flake.nix). No X session is left (dwm and
+# Zaris were removed 2026-11-27); this stays until the cleanup that retires
+# X entirely.
 # Awesome itself is gone (2026-11-27); its helper scripts in ../awesome/bin/
 # (colors, lock screen, OSD, wallpaper picker) and ../home/awesome.nix's
 # bar, picom, rofi and dunst setup are what dwm uses.

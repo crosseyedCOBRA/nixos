@@ -31,22 +31,6 @@
         "url": "file:///home/mike/src/dwl"
       }
     },
-    "dwm": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1795748554,
-        "narHash": "sha256-NsJdKKpKecOKxVTPJZQ4NNQydTnZX/tB/8Wn+GAcz48=",
-        "owner": "crosseyedCOBRA",
-        "repo": "dwm",
-        "rev": "8ebb1ddb481a414f339ea2a45655181e8b0db606",
-        "type": "github"
-      },
-      "original": {
-        "owner": "crosseyedCOBRA",
-        "repo": "dwm",
-        "type": "github"
-      }
-    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -88,11 +72,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1795706770,
-        "narHash": "sha256-C1x4TKbpiWX5lRsTQFwok5te55luUM76u1d8CjplXgI=",
+        "lastModified": 1795748630,
+        "narHash": "sha256-J1iQ1QMnkFwZFXnlPt2t3Qx7TsGjw08/0L3QMqNt+Wg=",
         "owner": "nix-community",
         "repo": "home-manager",
-        "rev": "5ef710576b9282ff6ae21b86b9316df393592cce",
+        "rev": "54f903fdaaf5d5720ed36706fe75332af69eb793",
         "type": "github"
       },
       "original": {
@@ -232,15 +216,13 @@
     "root": {
       "inputs": {
         "dwl": "dwl",
-        "dwm": "dwm",
         "home-manager": "home-manager",
         "hyprland-dotfiles": "hyprland-dotfiles",
         "lanzaboote": "lanzaboote",
         "nix-flatpak": "nix-flatpak",
         "nixpkgs": "nixpkgs",
         "quickshell": "quickshell",
-        "xlibre-overlay": "xlibre-overlay",
-        "zaris": "zaris"
+        "xlibre-overlay": "xlibre-overlay"
       }
     },
     "rust-overlay": {
@@ -284,22 +266,6 @@
         "ref": "dev-26.11",
         "type": "git",
         "url": "https://codeberg.org/takagemacoed/xlibre-overlay"
-      }
-    },
-    "zaris": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1789531763,
-        "narHash": "sha256-bbtd4h9fS0+ub8fXBF1o1paRVbyBgrcqEnVmNk4IhkY=",
-        "owner": "crosseyedCOBRA",
-        "repo": "zaris",
-        "rev": "e36637f1d0ff908d03a8036c9df47d07185682c3",
-        "type": "github"
-      },
-      "original": {
-        "owner": "crosseyedCOBRA",
-        "repo": "zaris",
-        "type": "github"
       }
     }
   },

@@ -8,7 +8,7 @@
     enable = true;
     remotePlay.openFirewall = true;
     localNetworkGameTransfers.openFirewall = true;
-    gamescopeSession.enable = true;
+    # No "Steam" login session (gamescope); Steam itself stays an app.
     # Every game's launch options (../steam/launch-options.json) start with
     # `gamemoderun mangohud %command%`; this makes sure mangohud is there
     # inside Steam's FHS environment too, not just on the host PATH.

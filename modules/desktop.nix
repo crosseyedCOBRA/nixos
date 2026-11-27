@@ -18,19 +18,18 @@
     settings.default_session.command =
       let
         sessions = config.services.displayManager.sessionData.desktops;
-        # Hyprland is the default every time the login screen comes up.
+        # dwl is the default every time the login screen comes up.
         # tuigreet has no "default session" option, only --remember-session
         # (the last pick, kept in this file), so the greeter resets that file
-        # to Hyprland before it starts. F3 still picks another session for
-        # one login.
-        greeter = pkgs.writeShellScript "tuigreet-hyprland-default" ''
-          printf '%s\n' ${sessions}/share/wayland-sessions/hyprland.desktop > /var/cache/tuigreet/lastsession-path
+        # to dwl before it starts. F3 still picks Hyprland for one login.
+        greeter = pkgs.writeShellScript "tuigreet-dwl-default" ''
+          printf '%s\n' ${sessions}/share/wayland-sessions/dwl.desktop > /var/cache/tuigreet/lastsession-path
           exec ${tuigreet} "$@"
         '';
         tuigreet = lib.concatStringsSep " " [
           "${pkgs.tuigreet}/bin/tuigreet"
           "--time"
-          "--remember --remember-session" # username sticky; session reset to Hyprland above
+          "--remember --remember-session" # username sticky; session reset to dwl above
           "--xsessions ${sessions}/share/xsessions"
           # startx alone runs the session's bare script, skipping NixOS's X
           # session setup: no DISPLAY for systemd user services (quickshell,
@@ -41,7 +40,7 @@
           "--sessions ${sessions}/share/wayland-sessions"
           # No --cmd: tuigreet shows a raw --cmd as its full /nix/store path
           # instead of a session name. Sessions are picked by name from the
-          # F3 menu (Hyprland, dwm, zaris, Steam).
+          # F3 menu (dwl, Hyprland).
         ];
       in
       "${greeter}";
@@ -68,7 +67,7 @@
   # (only LightDM/GDM/SDDM read it) -- kept for the sessionNames
   # assertion. What tuigreet starts is the session last picked in its F3
   # menu (--remember-session), not this option.
-  services.displayManager.defaultSession = "hyprland";
+  services.displayManager.defaultSession = "dwl";
 
   # --- Theming ---
   # Required by home-manager's `dconf.settings` (used for GTK dark mode).
@@ -83,7 +82,7 @@
     # another desktop's portal (COSMIC's) start in Hyprland too: it held up
     # every login by about 6 seconds and could take over screen sharing.
     config = {
-      common.default = [ "gtk" ]; # dwm, Zaris
+      common.default = [ "gtk" ]; # dwl (and anything without its own)
       hyprland.default = [ "hyprland" "gtk" ];
     };
   };

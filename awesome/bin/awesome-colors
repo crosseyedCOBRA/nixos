@@ -8,8 +8,7 @@
 # then pushes the result into what's already running.
 #
 # --random-once picks a random image from $WALLPAPER_DIR, but only once
-# per login: the dwm session runs it at every start, and restarts shouldn't
-# reshuffle the wallpaper.
+# per login (dwl-random-wallpaper runs it at every dwl login).
 
 set -uo pipefail
 
@@ -43,22 +42,14 @@ if ! matugen image -q -m dark --source-color-index 0 -c ~/.config/matugen/awesom
     exit 1
 fi
 
-# The wallpaper: on Wayland (dwl), swaybg draws it and reads
-# current-wallpaper when it starts (../../home/dwl.nix), so restart it. On
-# X (dwm), set it on every monitor, merge dwm's new colors, and restart a
-# running dwm in place (restartsig keeps its windows) so it reads them. The
-# quickshell bar watches its colors file itself; alacritty reloads its
-# imported colors on its own.
-if [[ -n ${WAYLAND_DISPLAY:-} ]]; then
-    # try-restart: only if it's already running. At login this runs
-    # before swaybg starts (dwl-random-wallpaper), which then just starts
-    # with the new image; --no-block so the two never wait on each other.
-    systemctl --user --no-block try-restart dwl-wallpaper.service
-else
-    xwallpaper --zoom "$img" 2>/dev/null
-    [[ -e $cache/dwm.Xresources ]] && xrdb -merge "$cache/dwm.Xresources"
-    pkill -HUP -x dwm
-fi
+# The wallpaper: swaybg draws it in dwl and reads current-wallpaper when it
+# starts (../../home/dwl.nix), so restart it. try-restart: only if it's
+# already running. At login this runs before swaybg starts
+# (dwl-random-wallpaper), which then just starts with the new image;
+# --no-block so the two never wait on each other. The quickshell bar
+# watches its colors file itself; alacritty reloads its imported colors on
+# its own.
+systemctl --user --no-block try-restart dwl-wallpaper.service
 
 for sock in /tmp/kitty-*; do
     [[ -S $sock ]] && kitty @ --to "unix:$sock" set-colors --all --configured ~/.config/kitty/colors.conf
