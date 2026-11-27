@@ -49,7 +49,14 @@ in
         ${rofi}/bin/rofi -dmenu -p "Power" -theme-str 'listview { lines: 5; }')
       case "$choice" in
         Lock) lock-screen ;;
-        Logout) ${awesome}/bin/awesome-client 'awesome.quit()' ;;
+        # Any X session: Awesome quits cleanly through awesome-client; dwm,
+        # Zaris and the rest just end the login session.
+        Logout)
+          if [[ ''${XDG_CURRENT_DESKTOP:-} == *awesome* ]]; then
+            ${awesome}/bin/awesome-client 'awesome.quit()'
+          else
+            ${systemd}/bin/loginctl terminate-session "$XDG_SESSION_ID"
+          fi ;;
         Suspend) ${systemd}/bin/systemctl suspend ;;
         Reboot) ${systemd}/bin/systemctl reboot ;;
         Shutdown) ${systemd}/bin/systemctl poweroff ;;
