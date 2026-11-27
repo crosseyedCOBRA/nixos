@@ -129,7 +129,7 @@ let
           printf "%-24s %s\n", "Super+Shift+1-9", "move the window to a tag"
           printf "%-24s %s\n", "Super+Ctrl+Shift+1-9", "add the window to a tag"
           print "━━ Mouse ━━"
-          printf "%-24s %s\n", "Super+drag", "move a window"
+          printf "%-24s %s\n", "Super+drag", "move a window (a tiled one drops into a new spot)"
           printf "%-24s %s\n", "Super+right-drag", "resize a window"
           printf "%-24s %s\n", "Super+middle-click", "floating on/off"
           printf "%-24s %s\n", "Super+scroll", "previous/next tag"
@@ -182,6 +182,9 @@ in
         --output DisplayPort-1 --mode 1920x1080 --rate 144 --rotate right --right-of DisplayPort-0 \
         --output DisplayPort-2 --mode 1920x1080 --rate 144 --rotate normal --right-of DisplayPort-1 \
         --output HDMI-A-0 --off
+      # The wallpaper again, now that the monitors are rotated and in place
+      # (the session sets it before dwm starts, for the old layout).
+      xwallpaper --zoom "$(cat "$HOME/.cache/awesome/current-wallpaper")"
       # Screens only blank while locked (lock-screen turns DPMS on).
       xset s off -dpms
 
