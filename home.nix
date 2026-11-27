@@ -7,6 +7,7 @@
     ./home/awesome.nix
     ./home/zaris.nix
     ./home/dwm.nix
+    ./home/dwl.nix
     ./home/hyprland.nix
     ./home/streaming.nix
     ./home/theming.nix

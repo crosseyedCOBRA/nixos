@@ -150,7 +150,9 @@ ShellRoot {
 
             // The primary monitor's bar gets the full set of readouts, the
             // others a reduced one -- the same split as waybar's config.
-            readonly property bool isPrimary: modelData.name === "DisplayPort-0"
+            // The main monitor: DisplayPort-0 in the X sessions (amdgpu's X
+            // driver names), DP-1 on Wayland (dwl, the kernel's names).
+            readonly property bool isPrimary: modelData.name === "DisplayPort-0" || modelData.name === "DP-1"
 
             Item {
                 anchors.fill: parent
@@ -268,9 +270,12 @@ ShellRoot {
                             anchors.margins: -4
                             onClicked: screenshotProcess.running = true
                         }
+                        // Wayland (dwl): grim + slurp (screenshot-region, from
+                        // ../hyprland/bin); X (dwm): flameshot.
                         Process {
                             id: screenshotProcess
-                            command: [ "flameshot", "gui" ]
+                            command: [ "sh", "-c",
+                                "if [ -n \"$WAYLAND_DISPLAY\" ]; then exec screenshot-region; else exec flameshot gui; fi" ]
                         }
                     }
 
@@ -286,9 +291,12 @@ ShellRoot {
                             anchors.margins: -4
                             onClicked: clipboardProcess.running = true
                         }
+                        // Wayland (dwl): cliphist's history in rofi (dwl's
+                        // cliphist service records it); X (dwm): clipmenu.
                         Process {
                             id: clipboardProcess
-                            command: [ "clipmenu" ]
+                            command: [ "sh", "-c",
+                                "if [ -n \"$WAYLAND_DISPLAY\" ]; then cliphist list | rofi -dmenu -i -p Clipboard | cliphist decode | wl-copy; else exec clipmenu; fi" ]
                         }
                     }
                 }

@@ -15,6 +15,22 @@
         "type": "github"
       }
     },
+    "dwl": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1795753812,
+        "narHash": "sha256-xrBYdElTzJZLkUJMzP2E9CV6VT9TiSqE1KBxcxZRqlE=",
+        "ref": "refs/heads/main",
+        "rev": "1877d965422285b714c8a322f11ff684b18c97ec",
+        "revCount": 1393,
+        "type": "git",
+        "url": "file:///home/mike/src/dwl"
+      },
+      "original": {
+        "type": "git",
+        "url": "file:///home/mike/src/dwl"
+      }
+    },
     "dwm": {
       "flake": false,
       "locked": {
@@ -215,6 +231,7 @@
     },
     "root": {
       "inputs": {
+        "dwl": "dwl",
         "dwm": "dwm",
         "home-manager": "home-manager",
         "hyprland-dotfiles": "hyprland-dotfiles",

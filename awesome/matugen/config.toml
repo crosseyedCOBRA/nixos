@@ -28,6 +28,10 @@ output_path = "~/.cache/awesome/colors.json"
 input_path = "~/.config/matugen/awesome/templates/rofi-colors.rasi"
 output_path = "~/.cache/awesome/rofi-colors.rasi"
 
+[templates.swaync]
+input_path = "~/.config/matugen/awesome/apps/colors.css"
+output_path = "~/.config/hypr/colors.css"
+
 [templates.dunst]
 input_path = "~/.config/matugen/awesome/templates/dunst-colors.conf"
 output_path = "~/.config/dunst/dunstrc.d/50-colors.conf"

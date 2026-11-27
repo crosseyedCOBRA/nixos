@@ -1,20 +1,16 @@
-# X11 + Awesome session (system side). Its monitor layout is set by
-# ../awesome/rc.lua (xrandr), Hyprland's by ../hyprland/hyprland.lua.
+# The X11 server for the X sessions (dwm, Zaris; XLibre, see flake.nix).
+# Awesome itself is gone (2026-11-27); its helper scripts in ../awesome/bin/
+# (colors, lock screen, OSD, wallpaper picker) and ../home/awesome.nix's
+# bar, picom, rofi and dunst setup are what dwm uses.
 { lib, pkgs, ... }:
 
 {
-  # --- X11 + Awesome ---
-  # Awesome is the daily-driver window manager: chosen over i3, Plasma, and
-  # the XFCE/Cinnamon DEs tried for testing, for its native dwindle/master
-  # layouts, real mouse-driven tiling, and per-monitor tags without needing
-  # patches. Hyprland (./hyprland.nix) is a second, genuinely-riced session, not a
-  # replacement -- see ../hyprland/.
+  # --- X11 ---
   services.xserver.enable = true;
-  services.xserver.windowManager.awesome.enable = true;
   # The login screen starts X with startx (see ./desktop.nix), and startx
   # doesn't pass X the config NixOS generates -- without it X finds neither
   # the amdgpu driver (falling back to modesetting, which names the outputs
-  # DP-1.. instead of rc.lua's DisplayPort-0..) nor libinput, so the
+  # DP-1.. instead of the DisplayPort-0.. the xrandr layouts use) nor libinput, so the
   # keyboard and mouse never work. This writes that config to
   # /etc/X11/xorg.conf, where X looks by default.
   services.xserver.displayManager.startx.enable = true;
@@ -42,7 +38,7 @@
   # /etc/pam.d/i3lock. Without it, i3lock has no PAM stack to check the
   # password against and rejects every attempt, correct or not -- the
   # i3 window manager module sets this automatically, but nothing does
-  # for Awesome, so it must be requested explicitly here.
+  # for dwm or Zaris, so it must be requested explicitly here.
   programs.i3lock.enable = true;
   # i3lock-color: the blurred-wallpaper background, clock and themed ring
   # in ../awesome/bin/lock-screen, and media keys while locked.

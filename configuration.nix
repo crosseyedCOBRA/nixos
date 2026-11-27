@@ -9,8 +9,8 @@
     ./modules/awesome.nix
     ./modules/zaris.nix
     ./modules/dwm.nix
+    ./modules/dwl.nix
     ./modules/hyprland.nix
-    ./modules/cosmic.nix
     ./modules/services.nix
     ./modules/storage.nix
     ./modules/packages.nix

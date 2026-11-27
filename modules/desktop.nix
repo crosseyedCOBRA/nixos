@@ -41,7 +41,7 @@
           "--sessions ${sessions}/share/wayland-sessions"
           # No --cmd: tuigreet shows a raw --cmd as its full /nix/store path
           # instead of a session name. Sessions are picked by name from the
-          # F3 menu (awesome, dwm, zaris, Hyprland, COSMIC, Steam).
+          # F3 menu (Hyprland, dwm, zaris, Steam).
         ];
       in
       "${greeter}";
@@ -79,14 +79,12 @@
   xdg.portal = {
     enable = true;
     extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
-    # Each desktop gets its own portals. "*" (any installed portal) let
-    # COSMIC's portal start in Hyprland and Awesome too: it held up every
-    # Hyprland login by about 6 seconds, and could take over screen sharing
-    # and file dialogs outside COSMIC.
+    # Each desktop gets its own portals. "*" (any installed portal) once let
+    # another desktop's portal (COSMIC's) start in Hyprland too: it held up
+    # every login by about 6 seconds and could take over screen sharing.
     config = {
-      common.default = [ "gtk" ]; # Awesome, dwm, Zaris
+      common.default = [ "gtk" ]; # dwm, Zaris
       hyprland.default = [ "hyprland" "gtk" ];
-      COSMIC.default = [ "cosmic" "gtk" ];
     };
   };
 

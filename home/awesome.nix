@@ -24,7 +24,7 @@ in
     playerctl
     brightnessctl
     pavucontrol
-    pulseaudio # provides pactl, used by the volume keybindings (../awesome/rc.lua)
+    pulseaudio # provides pactl, used by awesome-osd (the volume keys)
     flameshot
     xclip
     feh
@@ -49,14 +49,7 @@ in
         ${rofi}/bin/rofi -dmenu -p "Power" -theme-str 'listview { lines: 5; }')
       case "$choice" in
         Lock) lock-screen ;;
-        # Any X session: Awesome quits cleanly through awesome-client; dwm,
-        # Zaris and the rest just end the login session.
-        Logout)
-          if [[ ''${XDG_CURRENT_DESKTOP:-} == *awesome* ]]; then
-            ${awesome}/bin/awesome-client 'awesome.quit()'
-          else
-            ${systemd}/bin/loginctl terminate-session "$XDG_SESSION_ID"
-          fi ;;
+        Logout) ${systemd}/bin/loginctl terminate-session "$XDG_SESSION_ID" ;;
         Suspend) ${systemd}/bin/systemctl suspend ;;
         Reboot) ${systemd}/bin/systemctl reboot ;;
         Shutdown) ${systemd}/bin/systemctl poweroff ;;
@@ -316,6 +309,8 @@ in
   # The app templates (GTK, starship, fastfetch, btop, Vesktop), shared with
   # Hyprland's color config.
   xdg.configFile."matugen/awesome/apps/gtk3.css".source = ../hyprland/matugen/templates/gtk3.css;
+  # swaync's colors (it @imports ~/.config/hypr/colors.css), for dwl
+  xdg.configFile."matugen/awesome/apps/colors.css".source = ../hyprland/matugen/templates/colors.css;
   xdg.configFile."matugen/awesome/apps/gtk4.css".source = ../hyprland/matugen/templates/gtk4.css;
   xdg.configFile."matugen/awesome/apps/starship.toml".source = ../hyprland/matugen/templates/starship.toml;
   xdg.configFile."matugen/awesome/apps/fastfetch.jsonc".source = ../hyprland/matugen/templates/fastfetch.jsonc;
@@ -356,8 +351,6 @@ in
   # (./zaris.nix), which also writes its settings there.
   xdg.configFile."quickshell-awesome/shell.qml".source = ../quickshell/shell.qml;
   xdg.configFile."quickshell-awesome/nix-snowflake-white.svg".source = ../assets/nix-snowflake-white.svg;
-  xdg.configFile."awesome/rc.lua".source = ../awesome/rc.lua;
-  xdg.configFile."awesome/theme.lua".source = ../awesome/theme.lua;
   xdg.configFile."awesome/wallpaper.jpg".source = wallpaper;
   xdg.configFile."quickshell-awesome/awesome-view-tag.sh" = {
     source = ../awesome/view-tag.sh;

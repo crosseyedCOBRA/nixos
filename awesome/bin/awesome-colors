@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # awesome-colors <image> | --random-once
 #
-# Awesome's counterpart of Hyprland's apply-colors: makes <image> the
+# The X sessions' counterpart of Hyprland's apply-colors: makes <image> the
 # wallpaper and recolors the session from it with matugen
 # (~/.config/matugen/awesome.toml: borders, quickshell bar, rofi, dunst,
 # alacritty, the lock screen, GTK apps, starship, fastfetch, btop, Vesktop),
 # then pushes the result into what's already running.
 #
 # --random-once picks a random image from $WALLPAPER_DIR, but only once
-# per login: rc.lua runs it at every (re)start, and Super+Ctrl+R shouldn't
+# per login: the dwm session runs it at every start, and restarts shouldn't
 # reshuffle the wallpaper.
 
 set -uo pipefail
@@ -43,27 +43,31 @@ if ! matugen image -q -m dark --source-color-index 0 -c ~/.config/matugen/awesom
     exit 1
 fi
 
-# Outside Awesome (dwm), nothing else draws the wallpaper: set it on every
-# monitor, merge dwm's new colors, and restart a running dwm in place
-# (restartsig keeps its windows) so it reads them. Decided by the session
-# name: on NixOS Awesome's process is ".awesome-wrapped", so pgrep -x
-# awesome never matches.
-if [[ ${DESKTOP_SESSION:-} != *awesome* ]]; then
+# The wallpaper: on Wayland (dwl), swaybg draws it and reads
+# current-wallpaper when it starts (../../home/dwl.nix), so restart it. On
+# X (dwm), set it on every monitor, merge dwm's new colors, and restart a
+# running dwm in place (restartsig keeps its windows) so it reads them. The
+# quickshell bar watches its colors file itself; alacritty reloads its
+# imported colors on its own.
+if [[ -n ${WAYLAND_DISPLAY:-} ]]; then
+    # try-restart: only if it's already running. At login this runs
+    # before swaybg starts (dwl-random-wallpaper), which then just starts
+    # with the new image; --no-block so the two never wait on each other.
+    systemctl --user --no-block try-restart dwl-wallpaper.service
+else
     xwallpaper --zoom "$img" 2>/dev/null
     [[ -e $cache/dwm.Xresources ]] && xrdb -merge "$cache/dwm.Xresources"
     pkill -HUP -x dwm
 fi
 
-# rc.lua's awesome_apply_theme(): re-reads theme.lua (colors + wallpaper)
-# and repaints wallpapers and window borders. The quickshell bar watches
-# its colors file itself; alacritty reloads its imported colors on its own.
-awesome-client 'awesome_apply_theme()' >/dev/null 2>&1
-
 for sock in /tmp/kitty-*; do
     [[ -S $sock ]] && kitty @ --to "unix:$sock" set-colors --all --configured ~/.config/kitty/colors.conf
 done
 
-dunstctl reload >/dev/null 2>&1
+# Only the notification daemon that's running: dunstctl alone would start
+# dunst through D-Bus in dwl, where swaync holds the notifications.
+pgrep -x dunst >/dev/null && dunstctl reload >/dev/null 2>&1
+pgrep -x swaync >/dev/null && swaync-client --reload-css >/dev/null 2>&1
 
 setsid -f lock-screen --prepare >/dev/null 2>&1
 
