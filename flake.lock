@@ -20,15 +20,15 @@
       "locked": {
         "lastModified": 1795797891,
         "narHash": "sha256-P0Wy2YfLrRdTtrWSc8P0MJ3VGryeNWhs+7Rp0VDsYuI=",
-        "ref": "refs/heads/main",
+        "owner": "crosseyedCOBRA",
+        "repo": "dwl",
         "rev": "003955f4d83206b58a7cb6c56c16c06886623ce3",
-        "revCount": 1396,
-        "type": "git",
-        "url": "file:///home/mike/src/dwl"
+        "type": "github"
       },
       "original": {
-        "type": "git",
-        "url": "file:///home/mike/src/dwl"
+        "owner": "crosseyedCOBRA",
+        "repo": "dwl",
+        "type": "github"
       }
     },
     "flake-compat": {

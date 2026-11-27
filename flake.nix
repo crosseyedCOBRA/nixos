@@ -16,12 +16,11 @@
 
     nix-flatpak.url = "github:gmodena/nix-flatpak";
 
-    # My dwl (dwm for Wayland): dwl v0.9 with dwl-patches and my config.h,
-    # plus my native HDMI mirroring (modules/dwl.nix builds it). The
-    # local repo for now, while it's a prototype: commit in ~/src/dwl, then
-    # `nix flake update dwl`. Moves to github:crosseyedCOBRA/dwl once pushed.
+    # My dwl (dwm for Wayland): dwl v0.9 with dwl-patches, my config.h and
+    # my native HDMI mirroring (modules/dwl.nix builds it). Edit in
+    # ~/src/dwl, push, then `nix flake update dwl` to pick up the new commit.
     dwl = {
-      url = "git+file:///home/mike/src/dwl";
+      url = "github:crosseyedCOBRA/dwl";
       flake = false;
     };
 
